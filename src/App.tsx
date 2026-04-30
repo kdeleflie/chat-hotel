@@ -372,9 +372,15 @@ export default function App() {
               } catch (error: any) {
                 console.error("Erreur de connexion:", error);
                 const currentDomain = window.location.hostname;
-                alert("Erreur de connexion: " + error.message + 
-                      "\n\nDomaine détecté : " + currentDomain +
-                      "\n\nAssurez-vous que CE domaine (" + currentDomain + ") est EXACTEMENT celui autorisé dans la console Firebase (Authentication > Settings > Authorized Domains).");
+                const configAuthDomain = (auth as any).app?.options?.authDomain || "Inconnu";
+                alert(`Erreur de connexion: ${error.message}
+                
+Domaine détecté : ${currentDomain}
+AuthDomain configuré : ${configAuthDomain}
+
+IMPORTANT : Le domaine detected (${currentDomain}) doit être listé dans les "Domaines autorisés" de la console Firebase DU PROJET '${configAuthDomain}'. 
+
+Si c'est déjà fait, essayez de vider le cache ou attendez quelques minutes que Firebase propage la modification.`);
               }
             }}
             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95"
