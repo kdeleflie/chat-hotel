@@ -371,7 +371,10 @@ export default function App() {
                 await signInWithPopup(auth, new GoogleAuthProvider());
               } catch (error: any) {
                 console.error("Erreur de connexion:", error);
-                alert("Erreur de connexion: " + error.message + "\n\nAssurez-vous que le domaine est autorisé dans la console Firebase (Authentication > Settings > Authorized Domains).");
+                const currentDomain = window.location.hostname;
+                alert("Erreur de connexion: " + error.message + 
+                      "\n\nDomaine détecté : " + currentDomain +
+                      "\n\nAssurez-vous que CE domaine (" + currentDomain + ") est EXACTEMENT celui autorisé dans la console Firebase (Authentication > Settings > Authorized Domains).");
               }
             }}
             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95"
