@@ -1,0 +1,137 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'kdeleflie@gmail.com' ||
+        request.auth.token.email == 'fdeleflie@gmail.com'
+      );
+    }
+
+    function isValidId(id) {
+      return (id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$')) || id is int;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Collection: Admins ---
+    match /admins/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      // Writing to admins is restricted to existing admins or internal process (not exposed here)
+      allow write: if false;
+    }
+
+    // --- Collection: Settings ---
+    match /settings/{settingKey} {
+      allow read: if isAdmin();
+      allow write: if isAdmin() && isValidId(settingKey) && isValidSetting(incoming());
+    }
+
+    function isValidSetting(data) {
+      return data.keys().hasAll(['value'])
+        && data.value is string;
+    }
+
+    // --- Collection: Clients ---
+    match /clients/{clientId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidClient(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidClient(data) {
+      return data.keys().hasAll(['name']) 
+        && data.name is string && data.name.size() > 0;
+    }
+
+    // --- Collection: Cats ---
+    match /cats/{catId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidCat(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidCat(data) {
+      return data.keys().hasAll(['owner_id', 'name'])
+        && (data.owner_id is string || data.owner_id is int || data.owner_id is number)
+        && data.name is string && data.name.size() > 0;
+    }
+
+    // --- Collection: Stays ---
+    match /stays/{stayId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidStay(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidStay(data) {
+      return data.keys().hasAll(['cat_id', 'box_number', 'arrival_date', 'planned_departure'])
+        && (data.cat_id is string || data.cat_id is int || data.cat_id is number)
+        && (data.box_number is number || data.box_number is int);
+    }
+
+    // --- Collection: Health Logs ---
+    match /health_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidHealthLog(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidHealthLog(data) {
+      return data.keys().hasAll(['stay_id', 'date'])
+        && (data.stay_id is string || data.stay_id is int || data.stay_id is number)
+        && data.date is string;
+    }
+
+    // --- Collection: Invoices ---
+    match /invoices/{invoiceId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidInvoice(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidInvoice(data) {
+      return data.keys().hasAll(['stay_id', 'amount', 'invoice_number'])
+        && (data.stay_id is string || data.stay_id is int || data.stay_id is number)
+        && (data.amount is number || data.amount is int)
+        && data.invoice_number is string;
+    }
+
+    // --- Collection: Media ---
+    match /media/{mediaId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidMedia(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidMedia(data) {
+      return data.keys().hasAll(['stay_id', 'type', 'url', 'filename'])
+        && (data.stay_id is string || data.stay_id is int || data.stay_id is number)
+        && data.type is string
+        && data.url is string;
+    }
+  }
+}

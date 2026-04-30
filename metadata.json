@@ -1,0 +1,7 @@
+{
+  "name": "Remix: Chat\u0027Hotel",
+  "description": "Système de gestion pour hôtel félin (pension pour chats)",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
