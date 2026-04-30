@@ -1,29 +1,19 @@
-
-# --- Secrets et Clés API (CRITIQUE) ---
-.env
-keys.json
-credentials.json
-*.pem
-
-# --- Python ---
-__pycache__/
-*.py[cod]
-*$py.class
-venv/
-.venv/
-env/
-build/
-dist/
-
-# --- Node.js (si tu utilises une interface web) ---
+# --- Node.js ---
 node_modules/
-npm-debug.log*
-yarn-error.log*
-.next/
-out/
+.cache/
+build/
+public/build/
+.env
 
-# --- Environnement et Système ---
+# --- Firebase ---
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# --- TypeScript / Vite ---
+*.tsbuildinfo
+.vrit/
+
+# --- OS ---
 .DS_Store
-Thumbs.db
-.vscode/
-.idea/
