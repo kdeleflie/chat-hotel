@@ -41,7 +41,9 @@ export interface Stay {
   owner_phone?: string;
   box_number: number;
   arrival_date: string;
+  arrival_time?: string;
   planned_departure: string;
+  departure_time?: string;
   actual_departure?: string;
   comments: string;
   ate_well?: boolean;
@@ -50,6 +52,20 @@ export interface Stay {
   incident?: string;
   health_comments?: string;
   contract_scan_url?: string;
+  contract_urls?: string[];
+  is_archived?: boolean;
+}
+
+export interface StayFormData {
+  cat_id: string;
+  box_number: number;
+  arrival_date: string;
+  arrival_time?: string;
+  planned_departure: string;
+  departure_time?: string;
+  actual_departure?: string;
+  comments: string;
+  is_forced?: boolean;
 }
 
 export interface HealthLog {
@@ -321,7 +337,12 @@ export default function App() {
 
       if (Array.isArray(clientsData)) setClients(clientsData);
       if (Array.isArray(catsData)) setCats(catsData);
-      if (Array.isArray(staysData)) setStays(staysData);
+      if (Array.isArray(staysData)) {
+        setStays(staysData.map((s: any) => ({
+          ...s,
+          contract_urls: s.contract_urls ? JSON.parse(s.contract_urls) : (s.contract_scan_url ? [s.contract_scan_url] : [])
+        })));
+      }
       if (settingsData && !settingsData.error) setSettings(settingsData);
       if (statsData && !statsData.error) setStats(statsData);
     } catch (error) {
@@ -373,14 +394,21 @@ export default function App() {
                 console.error("Erreur de connexion:", error);
                 const currentDomain = window.location.hostname;
                 const configAuthDomain = (auth as any).app?.options?.authDomain || "Inconnu";
-                alert(`Erreur de connexion: ${error.message}
+                const configProjectId = (auth as any).app?.options?.projectId || "Inconnu";
+                const consoleLink = `https://console.firebase.google.com/project/${configProjectId}/authentication/settings`;
                 
-Domaine détecté : ${currentDomain}
-AuthDomain configuré : ${configAuthDomain}
+                alert(`Erreur de connexion : Firebase (auth/unauthorized-domain)
 
-IMPORTANT : Le domaine detected (${currentDomain}) doit être listé dans les "Domaines autorisés" de la console Firebase DU PROJET '${configAuthDomain}'. 
+Domaine actuel : ${currentDomain}
+Projet Firebase détecté : ${configProjectId}
 
-Si c'est déjà fait, essayez de vider le cache ou attendez quelques minutes que Firebase propage la modification.`);
+ACTION REQUISE :
+1. Allez sur cette page (copiez-collez le lien) :
+${consoleLink}
+
+2. Dans l'onglet "Settings" > "Authorized Domains", vérifiez que '${currentDomain}' est présent.
+
+IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en haut à gauche), c'est que vous modifiez le mauvais projet.`);
               }
             }}
             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95"
@@ -553,10 +581,17 @@ Si c'est déjà fait, essayez de vider le cache ou attendez quelques minutes que
         </div>
       </div>
 
-      {/* Main Content */}
       <main className="lg:ml-64 p-4 lg:p-8 transition-all duration-300">
-        {activeTab === "stays" && <StaysView stays={stays} cats={cats} onUpdate={fetchData} settings={settings} showToast={showToast} askConfirm={askConfirm} />}
-        {activeTab === "calendar" && <CalendarView stays={stays} onUpdate={fetchData} settings={settings} showToast={showToast} askConfirm={askConfirm} />}
+        {activeTab === "stays" && (
+          <div className="space-y-6">
+            <StaysView stays={stays} cats={cats} onUpdate={fetchData} settings={settings} showToast={showToast} askConfirm={askConfirm} />
+          </div>
+        )}
+        {activeTab === "calendar" && (
+          <div className="space-y-6">
+            <CalendarView stays={stays} onUpdate={fetchData} settings={settings} showToast={showToast} askConfirm={askConfirm} />
+          </div>
+        )}
         {activeTab === "clients" && <ClientsView clients={clients} cats={cats} stays={stays} settings={settings} onUpdate={fetchData} showToast={showToast} askConfirm={askConfirm} />}
         {activeTab === "cats" && <CatsView cats={cats} clients={clients} onUpdate={fetchData} showToast={showToast} askConfirm={askConfirm} />}
         {activeTab === "stats" && (
@@ -609,25 +644,42 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
       }
     }
   }, [stays]);
-  const [formData, setFormData] = useState({ cat_id: "", box_number: 1, arrival_date: format(new Date(), "yyyy-MM-dd"), planned_departure: "", comments: "" });
+  const [formData, setFormData] = useState({ 
+    cat_id: "", 
+    box_number: 1, 
+    arrival_date: format(new Date(), "yyyy-MM-dd"), 
+    arrival_time: "14:00",
+    planned_departure: "", 
+    departure_time: "11:00",
+    comments: "",
+    is_forced: false
+  });
   const [status, setStatus] = useState("");
   const [filterMonth, setFilterMonth] = useState(format(new Date(), "yyyy-MM"));
 
   const totalBoxes = parseInt(settings.total_boxes || "3");
   const boxOptions = Array.from({ length: totalBoxes }, (_, i) => i + 1);
 
-  const filteredStays = stays.filter(s => s.arrival_date.startsWith(filterMonth));
+  // For the main list, we show stays of the selected month.
+  // We'll also show a toggle to see ALL active stays.
+  const [showAllActive, setShowAllActive] = useState(false);
+  const filteredStays = stays.filter(s => !s.is_archived && (showAllActive || s.arrival_date.startsWith(filterMonth)));
+  
+  // For the calendar, it MUST be filtered by month
+  const calendarStays = stays.filter(s => s.arrival_date.startsWith(filterMonth) && !s.is_archived);
 
-  const isBoxAvailable = (box: number, arrival: string, departure: string, excludeStayId?: string) => {
+  const isBoxAvailable = (box: number, arrival: string, departure: string, arrivalTime: string = '14:00', departureTime: string = '11:00', excludeStayId?: string) => {
     return !stays.some(s => {
       if (s.id === excludeStayId) return false;
       if (s.box_number !== box) return false;
+      if (s.is_archived) return false;
       
-      const sArrival = s.arrival_date;
-      const sDeparture = s.actual_departure || s.planned_departure;
+      const sArrival = new Date(`${s.arrival_date}T${s.arrival_time || '14:00'}`);
+      const sDeparture = new Date(`${s.actual_departure || s.planned_departure}T${s.departure_time || '11:00'}`);
+      const newArrival = new Date(`${arrival}T${arrivalTime}`);
+      const newDeparture = new Date(`${departure}T${departureTime}`);
       
-      // Overlap check: (StartA <= EndB) and (EndA >= StartB)
-      return arrival <= sDeparture && departure >= sArrival;
+      return newArrival < sDeparture && newDeparture > sArrival;
     });
   };
 
@@ -642,8 +694,8 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
       return;
     }
 
-    if (!isBoxAvailable(formData.box_number, formData.arrival_date, formData.planned_departure)) {
-      showToast(`Le Box ${formData.box_number} est déjà occupé sur cette période.`, "error");
+    if (!formData.is_forced && !isBoxAvailable(formData.box_number, formData.arrival_date, formData.planned_departure, formData.arrival_time, formData.departure_time)) {
+      showToast("Attention: Le box est déjà occupé sur cette plage horaire. Cochez 'Forcer l'attribution' pour passer outre.", "error");
       return;
     }
 
@@ -668,6 +720,8 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
       showToast("Séjour enregistré avec succès !");
       setIsAdding(false);
       onUpdate();
+      // On met à jour le mois de filtrage pour afficher le nouveau séjour
+      setFilterMonth(formData.arrival_date.substring(0, 7));
     } catch (error: any) {
       console.error("Save error:", error);
       setStatus("Erreur: " + error.message);
@@ -756,17 +810,38 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
       )}
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">Suivi des Séjours</h2>
+        <div>
+          <h2 className="text-2xl font-bold">Suivi des Séjours</h2>
+          <p className="text-sm text-stone-500">
+            {showAllActive ? "Affichage de tous les séjours actifs" : `Affichage des séjours de ${format(new Date(filterMonth + "-01"), "MMMM yyyy", { locale: fr })}`}
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 bg-white px-3 py-1 border border-stone-200 rounded-lg shadow-sm">
+            <input 
+              type="checkbox" 
+              id="show-all" 
+              checked={showAllActive} 
+              onChange={e => setShowAllActive(e.target.checked)} 
+              className="w-4 h-4 text-emerald-600 focus:ring-emerald-500 border-stone-300 rounded"
+            />
+            <label htmlFor="show-all" className="text-xs font-bold text-stone-600 cursor-pointer uppercase">Tout Voir</label>
+          </div>
+          <button 
+            onClick={() => { setFilterMonth(format(new Date(), "yyyy-MM")); setShowAllActive(false); }}
+            className="px-3 py-2 text-xs font-bold text-emerald-600 border border-emerald-200 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition-colors"
+          >
+            Ce mois-ci
+          </button>
           <input 
             type="month" 
-            className="flex-1 sm:flex-initial p-2 border border-stone-200 rounded-lg text-sm" 
+            className={`flex-1 sm:flex-initial p-2 border border-stone-200 rounded-lg text-sm ${showAllActive ? 'opacity-50 pointer-events-none' : ''}`} 
             value={filterMonth} 
             onChange={e => setFilterMonth(e.target.value)} 
           />
           <button 
             onClick={() => { setIsAdding(true); setFormData({ ...formData, cat_id: cats[0]?.id || "" }); }}
-            className="flex-1 sm:flex-initial bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors text-sm font-bold"
+            className="flex-1 sm:flex-initial bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors text-sm font-bold shadow-sm"
           >
             <Plus size={18} /> Nouveau Séjour
           </button>
@@ -802,37 +877,68 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
                 onChange={e => setFormData({ ...formData, box_number: parseInt(e.target.value) })}
               >
                 {boxOptions.map(box => {
-                  const available = isBoxAvailable(box, formData.arrival_date, formData.planned_departure);
+                  const available = isBoxAvailable(box, formData.arrival_date, formData.planned_departure, formData.arrival_time, formData.departure_time);
                   return (
                     <option key={box} value={box} className={available ? "" : "text-stone-300"}>
-                      Box {box} {!available && "(Occupé)"}
+                      Box {box} {!available && "(Occupé ou Turnover)"}
                     </option>
                   );
                 })}
               </select>
-              {boxOptions.every(box => !isBoxAvailable(box, formData.arrival_date, formData.planned_departure)) && (
-                <p className="text-[10px] text-red-500 font-bold mt-1">⚠️ Aucun box disponible sur cette période !</p>
+              <div className="flex items-center gap-2 mt-2">
+                <input 
+                  type="checkbox" 
+                  id="force-box"
+                  checked={formData.is_forced} 
+                  onChange={e => setFormData({ ...formData, is_forced: e.target.checked })} 
+                />
+                <label htmlFor="force-box" className="text-xs font-bold text-red-500 uppercase cursor-pointer">Forcer l'attribution (ex: 2 chats même box)</label>
+              </div>
+              {boxOptions.every(box => !isBoxAvailable(box, formData.arrival_date, formData.planned_departure, formData.arrival_time, formData.departure_time)) && !formData.is_forced && (
+                <p className="text-[10px] text-red-500 font-bold mt-1">⚠️ Aucun box libre sur cette plage horaire !</p>
               )}
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-stone-500 uppercase">Arrivée</label>
-              <input 
-                type="date"
-                required
-                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.arrival_date}
-                onChange={e => setFormData({ ...formData, arrival_date: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-stone-500 uppercase">Date Arrivée</label>
+                <input 
+                  type="date"
+                  required
+                  className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  value={formData.arrival_date}
+                  onChange={e => setFormData({ ...formData, arrival_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-stone-500 uppercase">Heure</label>
+                <input 
+                  type="time"
+                  className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  value={formData.arrival_time}
+                  onChange={e => setFormData({ ...formData, arrival_time: e.target.value })}
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-stone-500 uppercase">Départ Prévu</label>
-              <input 
-                type="date"
-                required
-                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.planned_departure}
-                onChange={e => setFormData({ ...formData, planned_departure: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-stone-500 uppercase">Date Départ Prévu</label>
+                <input 
+                  type="date"
+                  required
+                  className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  value={formData.planned_departure}
+                  onChange={e => setFormData({ ...formData, planned_departure: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-stone-500 uppercase">Heure</label>
+                <input 
+                  type="time"
+                  className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  value={formData.departure_time}
+                  onChange={e => setFormData({ ...formData, departure_time: e.target.value })}
+                />
+              </div>
             </div>
             <div className="col-span-2 space-y-1">
               <label className="text-xs font-semibold text-stone-500 uppercase">Commentaires</label>
@@ -873,8 +979,12 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
               </div>
               <div className="flex items-center gap-6">
                 <div className="text-right">
-                  <p className="text-[10px] uppercase font-bold text-stone-400">Dates</p>
-                  <p className="text-sm font-medium">{stay.arrival_date} → {stay.actual_departure || stay.planned_departure}</p>
+                    <p className="text-[10px] uppercase font-bold text-stone-400">Période</p>
+                    <p className="text-sm font-medium">
+                      {stay.arrival_date} <span className="text-stone-300">({stay.arrival_time || '14:00'})</span> 
+                      &nbsp;→&nbsp; 
+                      {stay.actual_departure || stay.planned_departure} <span className="text-stone-300">({stay.departure_time || '11:00'})</span>
+                    </p>
                 </div>
                 <div className="flex gap-2">
                   <button 
@@ -903,6 +1013,26 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
             )}
           </div>
         ))}
+        {filteredStays.length === 0 && (
+          <div className="bg-white p-12 rounded-2xl border border-stone-200 border-dashed text-center">
+            <p className="text-stone-500 mb-4">Aucun séjour trouvé pour cette période.</p>
+            <div className="flex justify-center gap-3">
+              <button 
+                onClick={() => setShowAllActive(true)}
+                className="text-stone-600 font-bold text-xs uppercase hover:text-emerald-600 transition-colors"
+              >
+                Tout voir
+              </button>
+              <span className="text-stone-300">|</span>
+              <button 
+                onClick={() => setFilterMonth(format(new Date(), "yyyy-MM"))}
+                className="text-stone-600 font-bold text-xs uppercase hover:text-emerald-600 transition-colors"
+              >
+                Mois actuel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1654,15 +1784,18 @@ function StayDetailsSection({ stay, onUpdate, settings, stays, showToast, askCon
   const totalBoxes = parseInt(settings.total_boxes || "3");
   const boxOptions = Array.from({ length: totalBoxes }, (_, i) => i + 1);
 
-  const isBoxAvailable = (box: number, arrival: string, departure: string, excludeStayId?: string) => {
+  const isBoxAvailable = (box: number, arrival: string, departure: string, arrivalTime: string = '14:00', departureTime: string = '11:00', excludeStayId?: string) => {
     return !stays.some(s => {
       if (s.id === excludeStayId) return false;
       if (s.box_number !== box) return false;
+      if (s.is_archived) return false;
       
-      const sArrival = s.arrival_date;
-      const sDeparture = s.actual_departure || s.planned_departure;
+      const sArrival = new Date(`${s.arrival_date}T${s.arrival_time || '14:00'}`);
+      const sDeparture = new Date(`${s.actual_departure || s.planned_departure}T${s.departure_time || '11:00'}`);
+      const newArrival = new Date(`${arrival}T${arrivalTime}`);
+      const newDeparture = new Date(`${departure}T${departureTime}`);
       
-      return arrival <= sDeparture && departure >= sArrival;
+      return newArrival < sDeparture && newDeparture > sArrival;
     });
   };
 
@@ -1695,17 +1828,22 @@ function StayDetailsSection({ stay, onUpdate, settings, stays, showToast, askCon
 
   const handleUpdate = async () => {
     const departure = formData.actual_departure || formData.planned_departure;
-    if (!isBoxAvailable(formData.box_number, formData.arrival_date, departure, stay.id)) {
-      showToast(`Le Box ${formData.box_number} est déjà occupé sur cette période.`, "error");
+    if (!formData.is_forced && !isBoxAvailable(formData.box_number, formData.arrival_date, departure, formData.arrival_time, formData.departure_time, stay.id)) {
+      showToast(`Le Box ${formData.box_number} est déjà occupé sur cette plage horaire. Cochez 'Forcer l'attribution' pour passer outre.`, "error");
       return;
     }
 
     setStatus("Enregistrement...");
     try {
+      const payload = {
+        ...formData,
+        contract_urls: formData.contract_urls ? JSON.stringify(formData.contract_urls) : null
+      };
+      
       const response = await fetch(`/api/stays/${stay.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -1736,23 +1874,45 @@ function StayDetailsSection({ stay, onUpdate, settings, stays, showToast, askCon
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-stone-400 uppercase">Arrivée</label>
-          <input 
-            type="date"
-            className="w-full p-2 text-sm border border-stone-200 rounded-lg"
-            value={formData.arrival_date || ""}
-            onChange={e => setFormData({ ...formData, arrival_date: e.target.value })}
-          />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-stone-400 uppercase">Date Arrivée</label>
+            <input 
+              type="date"
+              className="w-full p-2 text-sm border border-stone-200 rounded-lg"
+              value={formData.arrival_date || ""}
+              onChange={e => setFormData({ ...formData, arrival_date: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-stone-400 uppercase">Heure</label>
+            <input 
+              type="time"
+              className="w-full p-2 text-sm border border-stone-200 rounded-lg"
+              value={formData.arrival_time || "14:00"}
+              onChange={e => setFormData({ ...formData, arrival_time: e.target.value })}
+            />
+          </div>
         </div>
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-stone-400 uppercase">Départ Prévu</label>
-          <input 
-            type="date"
-            className="w-full p-2 text-sm border border-stone-200 rounded-lg"
-            value={formData.planned_departure || ""}
-            onChange={e => setFormData({ ...formData, planned_departure: e.target.value })}
-          />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-stone-400 uppercase">Date Départ Prévu</label>
+            <input 
+              type="date"
+              className="w-full p-2 text-sm border border-stone-200 rounded-lg"
+              value={formData.planned_departure || ""}
+              onChange={e => setFormData({ ...formData, planned_departure: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-stone-400 uppercase">Heure</label>
+            <input 
+              type="time"
+              className="w-full p-2 text-sm border border-stone-200 rounded-lg"
+              value={formData.departure_time || "11:00"}
+              onChange={e => setFormData({ ...formData, departure_time: e.target.value })}
+            />
+          </div>
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-stone-400 uppercase">Départ Réel</label>
@@ -1765,13 +1925,24 @@ function StayDetailsSection({ stay, onUpdate, settings, stays, showToast, askCon
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-stone-400 uppercase">Box</label>
-          <select 
-            className="w-full p-2 text-sm border border-stone-200 rounded-lg"
-            value={formData.box_number}
-            onChange={e => setFormData({ ...formData, box_number: parseInt(e.target.value) })}
-          >
-            {boxOptions.map(box => <option key={box} value={box}>Box {box}</option>)}
-          </select>
+          <div className="flex flex-col gap-1">
+            <select 
+              className="w-full p-2 text-sm border border-stone-200 rounded-lg"
+              value={formData.box_number}
+              onChange={e => setFormData({ ...formData, box_number: parseInt(e.target.value) })}
+            >
+              {boxOptions.map(box => <option key={box} value={box}>Box {box}</option>)}
+            </select>
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="force-box-edit"
+                checked={formData.is_forced} 
+                onChange={e => setFormData({ ...formData, is_forced: e.target.checked })} 
+              />
+              <label htmlFor="force-box-edit" className="text-[9px] font-bold text-red-500 uppercase cursor-pointer">Forcer l'attribution</label>
+            </div>
+          </div>
         </div>
         <div className="col-span-1 sm:col-span-2 space-y-1">
           <label className="text-[10px] font-bold text-stone-400 uppercase">Commentaires Généraux</label>
@@ -3117,6 +3288,43 @@ function CalendarView({ stays, onUpdate, settings, showToast, askConfirm }: { st
     return styles[(boxNumber - 1) % styles.length];
   };
 
+  const getDayBarStyle = (stay: Stay, date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const isArrivalDay = stay.arrival_date === dateStr;
+    const departureDate = stay.actual_departure || stay.planned_departure;
+    const isDepartureDay = departureDate === dateStr;
+
+    let left = 0;
+    let width = 100;
+
+    if (isArrivalDay || isDepartureDay) {
+      let startH = 0;
+      let endH = 24;
+
+      if (isArrivalDay) {
+        const [h, m] = (stay.arrival_time || "14:00").split(":").map(Number);
+        startH = h + (m / 60);
+      }
+      if (isDepartureDay) {
+        const [h, m] = (stay.departure_time || "11:00").split(":").map(Number);
+        endH = h + (m / 60);
+      }
+
+      if (endH <= startH && isArrivalDay && isDepartureDay) {
+        width = 10;
+      } else {
+        left = (startH / 24) * 100;
+        width = ((endH - startH) / 24) * 100;
+      }
+    }
+
+    return { 
+      marginLeft: `${left}%`, 
+      width: `${width}%`,
+      minWidth: width < 5 ? '4px' : 'auto'
+    };
+  };
+
   const getBoxSolidColor = (boxNumber: number) => {
     const colors = [
       'bg-emerald-500', 'bg-blue-500', 'bg-amber-500', 'bg-purple-500',
@@ -3146,6 +3354,12 @@ function CalendarView({ stays, onUpdate, settings, showToast, askConfirm }: { st
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setCurrentDate(new Date())}
+            className="px-3 py-2 text-xs font-bold text-emerald-600 border border-emerald-200 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition-colors"
+          >
+            Aujourd'hui
+          </button>
           <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - (viewMode === "boxes" && boxesTimeRange === "quarter" ? 3 : viewMode === "boxes" && boxesTimeRange === "year" ? 12 : 1)))} className="p-2 hover:bg-stone-100 rounded-lg"><ChevronLeft /></button>
           <span className="font-bold text-lg min-w-[150px] text-center uppercase tracking-widest">{displayLabel}</span>
           <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + (viewMode === "boxes" && boxesTimeRange === "quarter" ? 3 : viewMode === "boxes" && boxesTimeRange === "year" ? 12 : 1)))} className="p-2 hover:bg-stone-100 rounded-lg"><ChevronRight /></button>
@@ -3181,15 +3395,20 @@ function CalendarView({ stays, onUpdate, settings, showToast, askConfirm }: { st
                   <>
                     <span className="text-sm font-bold text-stone-400">{day}</span>
                     <div className="mt-2 space-y-1">
-                      {getStaysForDay(day).map(stay => (
-                        <button 
-                          key={stay.id} 
-                          onClick={() => setSelectedStay(stay)}
-                          className={`w-full text-left text-[10px] p-1 rounded font-bold truncate transition-colors ${getBoxStyle(stay.box_number)}`}
-                        >
-                          {stay.cat_name} (Box {stay.box_number})
-                        </button>
-                      ))}
+                      {getStaysForDay(day).map(stay => {
+                        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day!);
+                        return (
+                          <button 
+                            key={stay.id} 
+                            onClick={() => setSelectedStay(stay)}
+                            style={getDayBarStyle(stay, date)}
+                            className={`block text-left text-[10px] p-1 rounded font-bold truncate transition-all hover:scale-105 shadow-sm ${getBoxStyle(stay.box_number)}`}
+                            title={`${stay.cat_name} (${stay.arrival_date} ${stay.arrival_time || '14:00'} - ${stay.actual_departure || stay.planned_departure} ${stay.departure_time || '11:00'})`}
+                          >
+                            {stay.cat_name} (Box {stay.box_number})
+                          </button>
+                        );
+                      })}
                     </div>
                   </>
                 )}
@@ -3221,8 +3440,9 @@ function CalendarView({ stays, onUpdate, settings, showToast, askConfirm }: { st
                         <button 
                           key={stay.id}
                           onClick={() => setSelectedStay(stay)}
-                          className={`w-full h-full rounded text-[8px] p-0.5 font-bold truncate ${((stay.actual_departure || stay.planned_departure) < new Date().toISOString().split('T')[0]) ? 'bg-stone-200 text-stone-500' : `${getBoxSolidColor(stay.box_number)} text-white`}`}
-                          title={`${stay.cat_name} (${stay.arrival_date} - ${stay.actual_departure || stay.planned_departure})`}
+                          style={getDayBarStyle(stay, d)}
+                          className={`h-5 rounded text-[8px] p-0.5 font-bold truncate shadow-sm transition-transform hover:scale-105 ${((stay.actual_departure || stay.planned_departure) < new Date().toISOString().split('T')[0]) ? 'bg-stone-200 text-stone-500' : `${getBoxSolidColor(stay.box_number)} text-white`}`}
+                          title={`${stay.cat_name} (${stay.arrival_date} ${stay.arrival_time || '14:00'} - ${stay.actual_departure || stay.planned_departure} ${stay.departure_time || '11:00'})`}
                         >
                           {stay.cat_name.substring(0, 3)}
                         </button>
@@ -3746,19 +3966,45 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
          });
       }
 
+      const updatedUrls = [...(stay.contract_urls || []), base64];
+
       const res = await fetch(`/api/stays/${stay.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...stay, contract_scan_url: base64 })
+        body: JSON.stringify({ ...stay, contract_urls: JSON.stringify(updatedUrls) })
       });
       if (!res.ok) throw new Error("Erreur de sauvegarde.");
-      showToast("Contrat scanné ajouté avec succès !");
+      showToast("Contrat ajouté avec succès !");
       onUpdate();
     } catch (e: any) {
       showToast(e.message, "error");
     } finally {
       setUploadingId(null);
     }
+  };
+
+  const removeContract = (stay: Stay, index: number) => {
+    askConfirm(
+      "Supprimer ce contrat ?",
+      "Voulez-vous supprimer ce fichier de contrat ?",
+      async () => {
+        try {
+          const updatedUrls = [...(stay.contract_urls || [])];
+          updatedUrls.splice(index, 1);
+          
+          const res = await fetch(`/api/stays/${stay.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...stay, contract_urls: JSON.stringify(updatedUrls) })
+          });
+          if (!res.ok) throw new Error("Erreur de sauvegarde.");
+          showToast("Contrat supprimé !");
+          onUpdate();
+        } catch (e: any) {
+          showToast(e.message, "error");
+        }
+      }
+    );
   };
 
   const generateContractPDF = (stay: Stay) => {
@@ -3946,7 +4192,7 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
                     >
                       <FileText size={16} /> Générer PDF
                     </button>
-                    {!stay.contract_scan_url ? (
+                    {(stay.contract_urls || []).length === 0 && !uploadingId && (
                       <label className={`cursor-pointer text-emerald-600 hover:text-emerald-800 text-sm font-bold bg-emerald-50 px-3 py-1 rounded-lg transition-colors flex items-center gap-2 ${uploadingId === stay.id ? 'opacity-50 pointer-events-none' : ''}`}>
                         <Upload size={16} /> {uploadingId === stay.id ? "Envoi..." : "Uploader Signé"}
                         <input 
@@ -3958,53 +4204,43 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
                           }}
                         />
                       </label>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                         <a 
-                           href={stay.contract_scan_url} 
-                           download={`Contrat_Signe_${stay.owner_name}_${stay.cat_name}.pdf`} 
-                           className="text-emerald-700 hover:text-emerald-900 text-sm font-bold border border-emerald-200 bg-emerald-50 px-3 py-1 rounded-l-lg transition-colors flex items-center gap-2"
-                         >
-                           <FileText size={16} /> Signé
-                         </a>
-                         <label className="cursor-pointer text-emerald-700 hover:text-emerald-900 text-sm font-bold border border-l-0 border-emerald-200 bg-emerald-50 px-2 py-1 transition-colors flex items-center" title="Remplacer">
-                           <Upload size={14} />
-                           <input 
+                    )}
+                    
+                    <div className="flex flex-col gap-2">
+                      {(stay.contract_urls || []).map((url, idx) => (
+                        <div key={idx} className="flex items-center gap-1 group/item">
+                          <a 
+                            href={url} 
+                            target="_blank"
+                            rel="noreferrer"
+                            className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-3 py-1 rounded-l-lg text-xs font-bold flex items-center gap-2 hover:bg-emerald-100 transition-colors"
+                          >
+                            <FileText size={14} /> Contrat {idx + 1}
+                          </a>
+                          <button 
+                            onClick={() => removeContract(stay, idx)}
+                            className="bg-red-50 border border-red-100 text-red-500 px-2 py-1 rounded-r-lg hover:bg-red-100 transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      {(stay.contract_urls || []).length > 0 && (
+                        <label className="cursor-pointer text-emerald-600 hover:text-emerald-800 text-[10px] font-bold bg-stone-50 px-2 py-1 rounded border border-stone-200 text-center hover:bg-stone-100 transition-colors w-fit">
+                          + Ajouter un autre
+                          <input 
                             type="file" 
                             className="hidden" 
                             accept="image/*,application/pdf"
                             onChange={(e) => {
                               if (e.target.files?.[0]) handleUploadScan(stay, e.target.files[0]);
                             }}
-                           />
-                         </label>
-                         <button 
-                           onClick={() => {
-                             askConfirm(
-                               "Supprimer le contrat signé ?", 
-                               `Êtes-vous sûr de vouloir supprimer le contrat signé pour le séjour de ${stay.cat_name} ?`, 
-                               async () => {
-                                 try {
-                                   const res = await fetch(`/api/stays/${stay.id}`, {
-                                      method: "PUT",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ ...stay, contract_scan_url: null })
-                                   });
-                                   if (!res.ok) throw new Error("Erreur");
-                                   onUpdate();
-                                   showToast("Contrat supprimé");
-                                 } catch(e) {
-                                   showToast("Erreur de suppression", "error");
-                                 }
-                               }, 
-                               true
-                             );
-                           }}
-                           className="text-red-500 hover:text-red-700 text-sm font-bold border border-l-0 border-red-200 bg-red-50 px-2 py-1 rounded-r-lg transition-colors flex items-center" title="Supprimer">
-                           <Trash2 size={14} />
-                         </button>
-                      </div>
-                    )}
+                          />
+                        </label>
+                      )}
+                      {uploadingId === stay.id && <span className="text-[10px] text-emerald-600 animate-pulse font-bold">Téléchargement...</span>}
+                    </div>
                   </div>
                 </td>
               </tr>

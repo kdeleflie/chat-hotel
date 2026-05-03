@@ -203,9 +203,17 @@ app.get("/api/stays", (req, res) => {
 
 app.post("/api/stays", (req, res) => {
   console.log("Creating stay:", req.body);
-  const { cat_id, box_number, arrival_date, planned_departure, comments } = req.body;
+  const { cat_id, box_number, arrival_date, arrival_time, planned_departure, departure_time, comments } = req.body;
   try {
-    const result = db.prepare("INSERT INTO stays (cat_id, box_number, arrival_date, planned_departure, comments, is_archived) VALUES (?, ?, ?, ?, ?, 0)").run(cat_id, box_number, arrival_date, planned_departure, comments);
+    const result = db.prepare("INSERT INTO stays (cat_id, box_number, arrival_date, arrival_time, planned_departure, departure_time, comments, is_archived) VALUES (?, ?, ?, ?, ?, ?, ?, 0)").run(
+      cat_id, 
+      box_number, 
+      arrival_date, 
+      arrival_time || '14:00',
+      planned_departure, 
+      departure_time || '11:00',
+      comments
+    );
     res.json({ id: result.lastInsertRowid });
   } catch (err: any) {
     console.error("Error creating stay:", err.message);
@@ -214,11 +222,47 @@ app.post("/api/stays", (req, res) => {
 });
 
 app.put("/api/stays/:id", (req, res) => {
-  const { box_number, arrival_date, planned_departure, actual_departure, comments, is_archived, ate_well, abnormal_behavior, medication, incident, health_comments } = req.body;
+  const { 
+    box_number, 
+    arrival_date, 
+    arrival_time,
+    planned_departure, 
+    departure_time,
+    actual_departure, 
+    comments, 
+    is_archived, 
+    contract_urls,
+    ate_well, 
+    abnormal_behavior, 
+    medication, 
+    incident, 
+    health_comments 
+  } = req.body;
   
   const updateStay = db.transaction(() => {
-    db.prepare("UPDATE stays SET box_number = ?, arrival_date = ?, planned_departure = ?, actual_departure = ?, comments = ?, is_archived = ? WHERE id = ?").run(
-      box_number, arrival_date, planned_departure, actual_departure, comments, is_archived ? 1 : 0, req.params.id
+    db.prepare(`
+      UPDATE stays SET 
+        box_number = ?, 
+        arrival_date = ?, 
+        arrival_time = ?,
+        planned_departure = ?, 
+        departure_time = ?,
+        actual_departure = ?, 
+        comments = ?, 
+        is_archived = ?,
+        contract_urls = ?
+      WHERE id = ?
+    `).run(
+      box_number, 
+      arrival_date, 
+      arrival_time || '14:00',
+      planned_departure, 
+      departure_time || '11:00',
+      actual_departure, 
+      comments, 
+      is_archived ? 1 : 0, 
+      contract_urls,
+      req.params.id
     );
 
     // Update or create health log
@@ -559,10 +603,13 @@ async function startServer() {
       cat_id INTEGER,
       box_number INTEGER,
       arrival_date TEXT,
+      arrival_time TEXT DEFAULT '14:00',
       planned_departure TEXT,
+      departure_time TEXT DEFAULT '11:00',
       actual_departure TEXT,
       comments TEXT,
       is_archived INTEGER DEFAULT 0,
+      contract_urls TEXT,
       FOREIGN KEY (cat_id) REFERENCES cats(id) ON DELETE CASCADE
     );
 
@@ -601,6 +648,9 @@ async function startServer() {
   // Migration for existing tables
   try { db.exec("ALTER TABLE cats ADD COLUMN species TEXT DEFAULT 'Chat'"); } catch(e) {}
   try { db.exec("ALTER TABLE stays ADD COLUMN is_archived INTEGER DEFAULT 0"); } catch(e) {}
+  try { db.exec("ALTER TABLE stays ADD COLUMN arrival_time TEXT DEFAULT '14:00'"); } catch(e) {}
+  try { db.exec("ALTER TABLE stays ADD COLUMN departure_time TEXT DEFAULT '11:00'"); } catch(e) {}
+  try { db.exec("ALTER TABLE stays ADD COLUMN contract_urls TEXT"); } catch(e) {}
   try { db.exec("ALTER TABLE cats ADD COLUMN vaccine_tc_date TEXT"); } catch(e) {}
   try { db.exec("ALTER TABLE cats ADD COLUMN vaccine_l_date TEXT"); } catch(e) {}
   try { db.exec("ALTER TABLE cats ADD COLUMN parasite_treatment_date TEXT"); } catch(e) {}
