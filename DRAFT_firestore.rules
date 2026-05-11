@@ -39,7 +39,6 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUserProfile(incoming());
       allow update: if isOwner(userId) && isValidUserProfile(incoming()) &&
-                    incoming().uid == existing().uid &&
                     incoming().diff(existing()).affectedKeys().hasOnly(['config', 'lastSync', 'email']);
 
       // --- Clients ---
@@ -54,8 +53,7 @@ service cloud.firestore {
       }
 
       match /clients/{clientId} {
-        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
-        allow get: if isOwner(userId);
+        allow list, get: if isOwner(userId);
         allow create: if isOwner(userId) && isValidId(clientId) && isValidClient(incoming());
         allow update: if isOwner(userId) && isValidClient(incoming()) &&
                       incoming().uid == existing().uid &&
@@ -74,12 +72,10 @@ service cloud.firestore {
       }
 
       match /appointments/{apptId} {
-        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
-        allow get: if isOwner(userId);
+        allow list, get: if isOwner(userId);
         allow create: if isOwner(userId) && isValidId(apptId) && isValidAppointment(incoming());
         allow update: if isOwner(userId) && isValidAppointment(incoming()) &&
-                      incoming().uid == existing().uid &&
-                      incoming().id == existing().id;
+                      incoming().uid == existing().uid;
         allow delete: if isOwner(userId);
       }
 
@@ -93,23 +89,19 @@ service cloud.firestore {
       }
 
       match /invoices/{invId} {
-        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
-        allow get: if isOwner(userId);
+        allow list, get: if isOwner(userId);
         allow create: if isOwner(userId) && isValidId(invId) && isValidInvoice(incoming());
         allow update: if isOwner(userId) && isValidInvoice(incoming()) &&
-                      incoming().uid == existing().uid &&
-                      incoming().id == existing().id;
+                      incoming().uid == existing().uid;
         allow delete: if isOwner(userId);
       }
 
       // --- Product Invoices ---
       match /productInvoices/{pInvId} {
-        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
-        allow get: if isOwner(userId);
+        allow list, get: if isOwner(userId);
         allow create: if isOwner(userId) && isValidId(pInvId) && isValidInvoice(incoming());
         allow update: if isOwner(userId) && isValidInvoice(incoming()) &&
-                      incoming().uid == existing().uid &&
-                      incoming().id == existing().id;
+                      incoming().uid == existing().uid;
         allow delete: if isOwner(userId);
       }
     }
