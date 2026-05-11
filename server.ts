@@ -209,9 +209,9 @@ app.post("/api/stays", (req, res) => {
       cat_id, 
       box_number, 
       arrival_date, 
-      arrival_time || '14:00',
+      arrival_time ?? "14:00",
       planned_departure, 
-      departure_time || '11:00',
+      departure_time ?? "11:00",
       comments
     );
     res.json({ id: result.lastInsertRowid });
@@ -222,7 +222,7 @@ app.post("/api/stays", (req, res) => {
 });
 
 app.put("/api/stays/:id", (req, res) => {
-  const { 
+  let { 
     box_number, 
     arrival_date, 
     arrival_time,
@@ -238,6 +238,12 @@ app.put("/api/stays/:id", (req, res) => {
     incident, 
     health_comments 
   } = req.body;
+
+  console.log(`PUT /api/stays/${req.params.id} updating stay. contract_urls is an Array? ${Array.isArray(contract_urls)}. Length/size: ${contract_urls?.length}`);
+
+  if (Array.isArray(contract_urls)) {
+    contract_urls = JSON.stringify(contract_urls);
+  }
   
   const updateStay = db.transaction(() => {
     db.prepare(`
@@ -255,9 +261,9 @@ app.put("/api/stays/:id", (req, res) => {
     `).run(
       box_number, 
       arrival_date, 
-      arrival_time || '14:00',
+      arrival_time ?? "14:00",
       planned_departure, 
-      departure_time || '11:00',
+      departure_time ?? "11:00",
       actual_departure, 
       comments, 
       is_archived ? 1 : 0, 
@@ -387,6 +393,30 @@ app.delete("/api/media/:id", (req, res) => {
     db.prepare("DELETE FROM media WHERE id = ?").run(req.params.id);
   }
   res.json({ success: true });
+});
+
+app.post("/api/stays/:id/contract", upload.single("file"), (req: any, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  const url = `/uploads/${req.file.filename}`;
+  
+  const stay = db.prepare("SELECT contract_urls FROM stays WHERE id = ?").get(req.params.id) as any;
+  if (!stay) return res.status(404).json({ error: "Stay not found" });
+  
+  let urls: string[] = [];
+  if (stay.contract_urls) {
+    try {
+      let parsed = JSON.parse(stay.contract_urls);
+      while (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
+      }
+      if (Array.isArray(parsed)) {
+        urls = parsed;
+      }
+    } catch(e) {}
+  }
+  urls.push(url);
+  db.prepare("UPDATE stays SET contract_urls = ? WHERE id = ?").run(JSON.stringify(urls), req.params.id);
+  res.json({ success: true, url });
 });
 
 // Invoices

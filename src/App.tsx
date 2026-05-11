@@ -53,7 +53,7 @@ export interface Stay {
   health_comments?: string;
   contract_scan_url?: string;
   contract_urls?: string[];
-  is_archived?: boolean;
+  is_archived?: boolean | number | string;
 }
 
 export interface StayFormData {
@@ -338,10 +338,29 @@ export default function App() {
       if (Array.isArray(clientsData)) setClients(clientsData);
       if (Array.isArray(catsData)) setCats(catsData);
       if (Array.isArray(staysData)) {
-        setStays(staysData.map((s: any) => ({
-          ...s,
-          contract_urls: s.contract_urls ? JSON.parse(s.contract_urls) : (s.contract_scan_url ? [s.contract_scan_url] : [])
-        })));
+        setStays(staysData.map((s: any) => {
+          let parsedUrls: string[] = [];
+          if (s.contract_urls) {
+              let parsed = s.contract_urls;
+              if (typeof parsed === 'string') {
+                try {
+                  parsed = JSON.parse(parsed);
+                  while (typeof parsed === 'string') {
+                    parsed = JSON.parse(parsed);
+                  }
+                } catch (e) {
+                  console.error("Invalid contract_urls", s.contract_urls);
+                }
+              }
+              if (Array.isArray(parsed)) parsedUrls = parsed;
+          } else if (s.contract_scan_url) {
+            parsedUrls = [s.contract_scan_url];
+          }
+          return {
+            ...s,
+            contract_urls: parsedUrls
+          };
+        }));
       }
       if (settingsData && !settingsData.error) setSettings(settingsData);
       if (statsData && !statsData.error) setStats(statsData);
@@ -660,19 +679,21 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
   const totalBoxes = parseInt(settings.total_boxes || "3");
   const boxOptions = Array.from({ length: totalBoxes }, (_, i) => i + 1);
 
+  const isStayArchived = (s: Stay) => s.is_archived === true || s.is_archived === 1 || String(s.is_archived) === "1";
+
   // For the main list, we show stays of the selected month.
   // We'll also show a toggle to see ALL active stays.
   const [showAllActive, setShowAllActive] = useState(false);
-  const filteredStays = stays.filter(s => !s.is_archived && (showAllActive || s.arrival_date.startsWith(filterMonth)));
+  const filteredStays = stays.filter(s => !isStayArchived(s) && (showAllActive || (s.arrival_date && s.arrival_date.startsWith(filterMonth))));
   
   // For the calendar, it MUST be filtered by month
-  const calendarStays = stays.filter(s => s.arrival_date.startsWith(filterMonth) && !s.is_archived);
+  const calendarStays = stays.filter(s => s.arrival_date && s.arrival_date.startsWith(filterMonth) && !isStayArchived(s));
 
   const isBoxAvailable = (box: number, arrival: string, departure: string, arrivalTime: string = '14:00', departureTime: string = '11:00', excludeStayId?: string) => {
     return !stays.some(s => {
       if (s.id === excludeStayId) return false;
       if (s.box_number !== box) return false;
-      if (s.is_archived) return false;
+      if (isStayArchived(s)) return false;
       
       const sArrival = new Date(`${s.arrival_date}T${s.arrival_time || '14:00'}`);
       const sDeparture = new Date(`${s.actual_departure || s.planned_departure}T${s.departure_time || '11:00'}`);
@@ -719,6 +740,16 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
       setStatus("Succès !");
       showToast("Séjour enregistré avec succès !");
       setIsAdding(false);
+      setFormData({
+        cat_id: "", 
+        box_number: 1, 
+        arrival_date: format(new Date(), "yyyy-MM-dd"), 
+        arrival_time: "14:00",
+        planned_departure: "", 
+        departure_time: "11:00",
+        comments: "",
+        is_forced: false
+      });
       onUpdate();
       // On met à jour le mois de filtrage pour afficher le nouveau séjour
       setFilterMonth(formData.arrival_date.substring(0, 7));
@@ -761,7 +792,7 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
   const today = format(new Date(), "yyyy-MM-dd");
   const upcomingStays = stays
     .filter(s => s.arrival_date >= today)
-    .sort((a, b) => a.arrival_date.localeCompare(b.arrival_date));
+    .sort((a, b) => String(a.arrival_date || "").localeCompare(String(b.arrival_date || "")));
 
   return (
     <div className="space-y-6">
@@ -840,7 +871,19 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
             onChange={e => setFilterMonth(e.target.value)} 
           />
           <button 
-            onClick={() => { setIsAdding(true); setFormData({ ...formData, cat_id: cats[0]?.id || "" }); }}
+            onClick={() => { 
+              setIsAdding(true); 
+              setFormData({ 
+                cat_id: cats[0]?.id || "", 
+                box_number: 1, 
+                arrival_date: format(new Date(), "yyyy-MM-dd"), 
+                arrival_time: "14:00",
+                planned_departure: "", 
+                departure_time: "11:00", 
+                comments: "",
+                is_forced: false
+              }); 
+            }}
             className="flex-1 sm:flex-initial bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors text-sm font-bold shadow-sm"
           >
             <Plus size={18} /> Nouveau Séjour
@@ -905,7 +948,7 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
                   type="date"
                   required
                   className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={formData.arrival_date}
+                  value={formData.arrival_date || ""}
                   onChange={e => setFormData({ ...formData, arrival_date: e.target.value })}
                 />
               </div>
@@ -914,7 +957,7 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
                 <input 
                   type="time"
                   className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={formData.arrival_time}
+                  value={formData.arrival_time || "14:00"}
                   onChange={e => setFormData({ ...formData, arrival_time: e.target.value })}
                 />
               </div>
@@ -926,7 +969,7 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
                   type="date"
                   required
                   className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={formData.planned_departure}
+                  value={formData.planned_departure || ""}
                   onChange={e => setFormData({ ...formData, planned_departure: e.target.value })}
                 />
               </div>
@@ -935,7 +978,7 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
                 <input 
                   type="time"
                   className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={formData.departure_time}
+                  value={formData.departure_time || "11:00"}
                   onChange={e => setFormData({ ...formData, departure_time: e.target.value })}
                 />
               </div>
@@ -944,7 +987,7 @@ function StaysView({ stays, cats, onUpdate, settings, showToast, askConfirm }: {
               <label className="text-xs font-semibold text-stone-500 uppercase">Commentaires</label>
               <textarea 
                 className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none h-24"
-                value={formData.comments}
+                value={formData.comments || ""}
                 onChange={e => setFormData({ ...formData, comments: e.target.value })}
               />
             </div>
@@ -1762,6 +1805,10 @@ function InvoiceSection({ stay, settings, showToast, askConfirm, onUpdate }: { s
 function StayDetailsSection({ stay, onUpdate, settings, stays, showToast, askConfirm }: { stay: Stay, onUpdate: () => void, settings: Settings, stays: Stay[], showToast: (m: string, t?: 'success' | 'error') => void, askConfirm: (t: string, m: string, c: () => void, d?: boolean) => void }) {
   const [formData, setFormData] = useState({
     ...stay,
+    arrival_time: stay.arrival_time || "14:00",
+    departure_time: stay.departure_time || "11:00",
+    comments: stay.comments ?? "",
+    actual_departure: stay.actual_departure ?? "",
     ate_well: stay.ate_well ?? true,
     abnormal_behavior: stay.abnormal_behavior ?? false,
     medication: stay.medication ?? "",
@@ -1772,6 +1819,10 @@ function StayDetailsSection({ stay, onUpdate, settings, stays, showToast, askCon
   useEffect(() => {
     setFormData({
       ...stay,
+      arrival_time: stay.arrival_time || "14:00",
+      departure_time: stay.departure_time || "11:00",
+      comments: stay.comments ?? "",
+      actual_departure: stay.actual_departure ?? "",
       ate_well: stay.ate_well ?? true,
       abnormal_behavior: stay.abnormal_behavior ?? false,
       medication: stay.medication ?? "",
@@ -1788,7 +1839,7 @@ function StayDetailsSection({ stay, onUpdate, settings, stays, showToast, askCon
     return !stays.some(s => {
       if (s.id === excludeStayId) return false;
       if (s.box_number !== box) return false;
-      if (s.is_archived) return false;
+      if (s.is_archived === true || s.is_archived === 1 || String(s.is_archived) === "1") return false;
       
       const sArrival = new Date(`${s.arrival_date}T${s.arrival_time || '14:00'}`);
       const sDeparture = new Date(`${s.actual_departure || s.planned_departure}T${s.departure_time || '11:00'}`);
@@ -1837,7 +1888,7 @@ function StayDetailsSection({ stay, onUpdate, settings, stays, showToast, askCon
     try {
       const payload = {
         ...formData,
-        contract_urls: formData.contract_urls ? JSON.stringify(formData.contract_urls) : null
+        contract_urls: formData.contract_urls ? formData.contract_urls : null
       };
       
       const response = await fetch(`/api/stays/${stay.id}`, {
@@ -2154,7 +2205,7 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
               <input 
                 required
                 className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.name}
+                value={formData.name || ""}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
@@ -2162,7 +2213,7 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
               <label className="text-xs font-semibold text-stone-500 uppercase">Téléphone</label>
               <input 
                 className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.phone}
+                value={formData.phone || ""}
                 onChange={e => setFormData({ ...formData, phone: e.target.value })}
               />
             </div>
@@ -2171,7 +2222,7 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
               <input 
                 type="email"
                 className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.email}
+                value={formData.email || ""}
                 onChange={e => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
@@ -2179,7 +2230,7 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
               <label className="text-xs font-semibold text-stone-500 uppercase">Adresse</label>
               <input 
                 className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.address}
+                value={formData.address || ""}
                 onChange={e => setFormData({ ...formData, address: e.target.value })}
               />
             </div>
@@ -2202,7 +2253,15 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
                 <p className="text-stone-500 text-sm">{client.email}</p>
               </div>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => { setEditingClient(client); setFormData(client); }} className="p-2 text-stone-400 hover:text-emerald-600"><Edit size={18} /></button>
+                <button onClick={() => { 
+                  setEditingClient(client); 
+                  setFormData({
+                    name: client.name || "",
+                    address: client.address || "",
+                    email: client.email || "",
+                    phone: client.phone || ""
+                  }); 
+                }} className="p-2 text-stone-400 hover:text-emerald-600"><Edit size={18} /></button>
                 <button onClick={() => handleDelete(client.id)} className="p-2 text-stone-400 hover:text-red-600"><Trash2 size={18} /></button>
               </div>
             </div>
@@ -2255,8 +2314,8 @@ function ClientDashboard({ client, cats, stays, settings, onBack, onUpdate, show
 
   const handleEditCatClick = (cat: Cat) => {
     setCatFormData({
-      owner_id: cat.owner_id,
-      name: cat.name,
+      owner_id: cat.owner_id || client.id,
+      name: cat.name || "",
       species: cat.species || "Chat",
       breed: cat.breed || "",
       color: cat.color || "",
@@ -2374,25 +2433,25 @@ function ClientDashboard({ client, cats, stays, settings, onBack, onUpdate, show
           <form onSubmit={handleSaveCat} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-stone-500 uppercase">Nom de l'animal</label>
-              <input required className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.name} onChange={e => setCatFormData({ ...catFormData, name: e.target.value })} />
+              <input required className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.name || ""} onChange={e => setCatFormData({ ...catFormData, name: e.target.value })} />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-stone-500 uppercase">Espèce</label>
-              <select className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.species} onChange={e => setCatFormData({ ...catFormData, species: e.target.value })}>
+              <select className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.species || "Chat"} onChange={e => setCatFormData({ ...catFormData, species: e.target.value })}>
                 <option value="Chat">Chat</option><option value="Chien">Chien</option><option value="NAC">NAC</option><option value="Autre">Autre</option>
               </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-stone-500 uppercase">Race</label>
-              <input className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.breed} onChange={e => setCatFormData({ ...catFormData, breed: e.target.value })} />
+              <input className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.breed || ""} onChange={e => setCatFormData({ ...catFormData, breed: e.target.value })} />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-stone-500 uppercase">Couleur</label>
-              <input className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.color} onChange={e => setCatFormData({ ...catFormData, color: e.target.value })} />
+              <input className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.color || ""} onChange={e => setCatFormData({ ...catFormData, color: e.target.value })} />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-stone-500 uppercase">Numéro de puce</label>
-              <input className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.chip_number} onChange={e => setCatFormData({ ...catFormData, chip_number: e.target.value })} />
+              <input className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={catFormData.chip_number || ""} onChange={e => setCatFormData({ ...catFormData, chip_number: e.target.value })} />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-stone-500 uppercase">Age (manuel)</label>
@@ -2453,7 +2512,7 @@ function ClientDashboard({ client, cats, stays, settings, onBack, onUpdate, show
           {clientCats.length === 0 && <p className="text-stone-500 text-sm">Ce client n'a aucun animal enregistré.</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {clientCats.map(cat => {
-              const catStays = stays.filter(s => s.cat_id === cat.id).sort((a,b) => b.arrival_date.localeCompare(a.arrival_date));
+              const catStays = stays.filter(s => s.cat_id === cat.id).sort((a,b) => String(b.arrival_date || "").localeCompare(String(a.arrival_date || "")));
               return (
                 <div key={cat.id} className="bg-white p-5 rounded-xl shadow-sm border border-stone-200 group flex flex-col">
                   <div className="flex-1">
@@ -2621,7 +2680,7 @@ function CatsView({ cats, clients, onUpdate, showToast, askConfirm }: { cats: Ca
                 <select 
                   required
                   className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={formData.owner_id}
+                  value={formData.owner_id || ""}
                   onChange={e => setFormData({ ...formData, owner_id: e.target.value })}
                 >
                   <option value="">Sélectionner un client</option>
@@ -2633,7 +2692,7 @@ function CatsView({ cats, clients, onUpdate, showToast, askConfirm }: { cats: Ca
               <label className="text-xs font-semibold text-stone-500 uppercase">Espèce</label>
               <select 
                 className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.species}
+                value={formData.species || "Chat"}
                 onChange={e => setFormData({ ...formData, species: e.target.value })}
               >
                 <option value="Chat">Chat</option>
@@ -2647,7 +2706,7 @@ function CatsView({ cats, clients, onUpdate, showToast, askConfirm }: { cats: Ca
               <input 
                 required
                 className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.name}
+                value={formData.name || ""}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
@@ -2655,7 +2714,7 @@ function CatsView({ cats, clients, onUpdate, showToast, askConfirm }: { cats: Ca
               <label className="text-xs font-semibold text-stone-500 uppercase">Race</label>
               <input 
                 className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.breed}
+                value={formData.breed || ""}
                 onChange={e => setFormData({ ...formData, breed: e.target.value })}
               />
             </div>
@@ -2663,7 +2722,7 @@ function CatsView({ cats, clients, onUpdate, showToast, askConfirm }: { cats: Ca
               <label className="text-xs font-semibold text-stone-500 uppercase">Couleur</label>
               <input 
                 className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.color}
+                value={formData.color || ""}
                 onChange={e => setFormData({ ...formData, color: e.target.value })}
               />
             </div>
@@ -2750,7 +2809,22 @@ function CatsView({ cats, clients, onUpdate, showToast, askConfirm }: { cats: Ca
                 </div>
               </div>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => { setEditingCat(cat); setFormData({ ...cat, owner_id: cat.owner_id }); }} className="p-2 text-stone-400 hover:text-emerald-600"><Edit size={18} /></button>
+                <button onClick={() => { 
+                  setEditingCat(cat); 
+                  setFormData({ 
+                    owner_id: cat.owner_id || "", 
+                    name: cat.name || "", 
+                    species: cat.species || "Chat", 
+                    breed: cat.breed || "", 
+                    color: cat.color || "", 
+                    chip_number: cat.chip_number || "",
+                    vaccine_tc_date: cat.vaccine_tc_date || "",
+                    vaccine_l_date: cat.vaccine_l_date || "",
+                    parasite_treatment_date: cat.parasite_treatment_date || "",
+                    birth_date: cat.birth_date || "",
+                    age: cat.age || ""
+                  }); 
+                }} className="p-2 text-stone-400 hover:text-emerald-600"><Edit size={18} /></button>
                 <button onClick={() => handleDelete(cat.id)} className="p-2 text-stone-300 hover:text-red-600"><Trash2 size={18} /></button>
               </div>
             </div>
@@ -3971,7 +4045,7 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
       const res = await fetch(`/api/stays/${stay.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...stay, contract_urls: JSON.stringify(updatedUrls) })
+        body: JSON.stringify({ ...stay, contract_urls: updatedUrls })
       });
       if (!res.ok) throw new Error("Erreur de sauvegarde.");
       showToast("Contrat ajouté avec succès !");
@@ -3995,7 +4069,7 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
           const res = await fetch(`/api/stays/${stay.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...stay, contract_urls: JSON.stringify(updatedUrls) })
+            body: JSON.stringify({ ...stay, contract_urls: updatedUrls })
           });
           if (!res.ok) throw new Error("Erreur de sauvegarde.");
           showToast("Contrat supprimé !");
@@ -4201,6 +4275,7 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
                           accept="image/*,application/pdf"
                           onChange={(e) => {
                             if (e.target.files?.[0]) handleUploadScan(stay, e.target.files[0]);
+                            e.target.value = '';
                           }}
                         />
                       </label>
@@ -4235,6 +4310,7 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
                             accept="image/*,application/pdf"
                             onChange={(e) => {
                               if (e.target.files?.[0]) handleUploadScan(stay, e.target.files[0]);
+                              e.target.value = '';
                             }}
                           />
                         </label>

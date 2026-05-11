@@ -1,6 +1,6 @@
 {
-  "name": "kanine",
-  "description": "A comprehensive professional grooming management system featuring client tracking, smart scheduling, automated invoicing, and AI-powered pet care insights.",
+  "name": "Remix: Chat\u0027Hotel",
+  "description": "Système de gestion pour hôtel félin (pension pour chats)",
   "requestFramePermissions": [
     "camera"
   ]

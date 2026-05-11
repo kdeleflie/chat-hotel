@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Default Deny
+    // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
@@ -11,12 +11,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'kdeleflie@gmail.com' ||
+        request.auth.token.email == 'fdeleflie@gmail.com'
+      );
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return (id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$')) || id is int;
     }
 
     function incoming() {
@@ -27,91 +31,107 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // --- UserProfile Validation ---
-    function isValidUserProfile(data) {
-      return data.keys().hasAll(['uid', 'email', 'config']) &&
-             data.uid == request.auth.uid &&
-             data.email is string && data.email.size() <= 200 &&
-             data.config is map;
+    // --- Collection: Admins ---
+    match /admins/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      // Writing to admins is restricted to existing admins or internal process (not exposed here)
+      allow write: if false;
     }
 
-    match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUserProfile(incoming());
-      allow update: if isOwner(userId) && isValidUserProfile(incoming()) &&
-                    incoming().uid == existing().uid &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['config', 'lastSync', 'email']);
+    // --- Collection: Settings ---
+    match /settings/{settingKey} {
+      allow read: if isAdmin();
+      allow write: if isAdmin() && isValidId(settingKey) && isValidSetting(incoming());
+    }
 
-      // --- Clients ---
-      function isValidClient(data) {
-        return data.keys().hasAll(['id', 'uid', 'name']) &&
-               data.id == request.resource.id &&
-               data.uid == request.auth.uid &&
-               data.name is string && data.name.size() <= 100 &&
-               (data.get('phone', '') is string) && (data.get('phone', '').size() <= 20) &&
-               (data.get('email', '') is string) && (data.get('email', '').size() <= 200) &&
-               (data.get('weight', 0) is number);
-      }
+    function isValidSetting(data) {
+      return data.keys().hasAll(['value'])
+        && data.value is string;
+    }
 
-      match /clients/{clientId} {
-        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
-        allow get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(clientId) && isValidClient(incoming());
-        allow update: if isOwner(userId) && isValidClient(incoming()) &&
-                      incoming().uid == existing().uid &&
-                      incoming().id == existing().id;
-        allow delete: if isOwner(userId);
-      }
+    // --- Collection: Clients ---
+    match /clients/{clientId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidClient(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
 
-      // --- Appointments ---
-      function isValidAppointment(data) {
-        return data.keys().hasAll(['id', 'uid', 'date', 'time', 'clientId']) &&
-               data.uid == request.auth.uid &&
-               data.id == request.resource.id &&
-               data.date is string && data.date.size() <= 50 &&
-               data.time is string && data.time.size() <= 20 &&
-               data.clientId is string && data.clientId.size() <= 128;
-      }
+    function isValidClient(data) {
+      return data.keys().hasAll(['name']) 
+        && data.name is string && data.name.size() > 0;
+    }
 
-      match /appointments/{apptId} {
-        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
-        allow get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(apptId) && isValidAppointment(incoming());
-        allow update: if isOwner(userId) && isValidAppointment(incoming()) &&
-                      incoming().uid == existing().uid &&
-                      incoming().id == existing().id;
-        allow delete: if isOwner(userId);
-      }
+    // --- Collection: Cats ---
+    match /cats/{catId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidCat(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
 
-      // --- Invoices ---
-      function isValidInvoice(data) {
-        return data.keys().hasAll(['id', 'uid', 'number', 'date', 'clientId', 'amount']) &&
-               data.uid == request.auth.uid &&
-               data.id == request.resource.id &&
-               data.number is string && data.number.size() <= 50 &&
-               data.amount is number;
-      }
+    function isValidCat(data) {
+      return data.keys().hasAll(['owner_id', 'name'])
+        && (data.owner_id is string || data.owner_id is int || data.owner_id is number)
+        && data.name is string && data.name.size() > 0;
+    }
 
-      match /invoices/{invId} {
-        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
-        allow get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(invId) && isValidInvoice(incoming());
-        allow update: if isOwner(userId) && isValidInvoice(incoming()) &&
-                      incoming().uid == existing().uid &&
-                      incoming().id == existing().id;
-        allow delete: if isOwner(userId);
-      }
+    // --- Collection: Stays ---
+    match /stays/{stayId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidStay(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
 
-      // --- Product Invoices ---
-      match /productInvoices/{pInvId} {
-        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
-        allow get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(pInvId) && isValidInvoice(incoming());
-        allow update: if isOwner(userId) && isValidInvoice(incoming()) &&
-                      incoming().uid == existing().uid &&
-                      incoming().id == existing().id;
-        allow delete: if isOwner(userId);
-      }
+    function isValidStay(data) {
+      return data.keys().hasAll(['cat_id', 'box_number', 'arrival_date', 'planned_departure'])
+        && (data.cat_id is string || data.cat_id is int || data.cat_id is number)
+        && (data.box_number is number || data.box_number is int);
+    }
+
+    // --- Collection: Health Logs ---
+    match /health_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidHealthLog(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidHealthLog(data) {
+      return data.keys().hasAll(['stay_id', 'date'])
+        && (data.stay_id is string || data.stay_id is int || data.stay_id is number)
+        && data.date is string;
+    }
+
+    // --- Collection: Invoices ---
+    match /invoices/{invoiceId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidInvoice(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidInvoice(data) {
+      return data.keys().hasAll(['stay_id', 'amount', 'invoice_number'])
+        && (data.stay_id is string || data.stay_id is int || data.stay_id is number)
+        && (data.amount is number || data.amount is int)
+        && data.invoice_number is string;
+    }
+
+    // --- Collection: Media ---
+    match /media/{mediaId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidMedia(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidMedia(data) {
+      return data.keys().hasAll(['stay_id', 'type', 'url', 'filename'])
+        && (data.stay_id is string || data.stay_id is int || data.stay_id is number)
+        && data.type is string
+        && data.url is string;
     }
   }
 }

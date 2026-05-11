@@ -1,26 +1,87 @@
-# Security Specification for Kanine App
+# Security Specification - Chat Hotel
 
-## Data Invariants
-1. **User Ownership**: All data (Clients, Appointments, Invoices) is nested under a `userId` in the path. Access is strictly limited to the user whose `auth.uid` matches the `{userId}` path variable.
-2. **Identity Integrity**: The `uid` field in any document must strictly match the `request.auth.uid`.
-3. **Immutability**: Document IDs (`id`) and owner IDs (`uid`) are immutable after creation.
-4. **Type Safety**: All fields must match their expected types (string, number, boolean, array).
-5. **Sanitization**: Strings must have size limits to prevent abuse.
+## 1. Data Invariants
+- All documents must be accessible only by authorized administrators.
+- `cat_id` in a `Stay` must point to a valid `Cat`.
+- `stay_id` in `HealthLog`, `Invoice`, or `Media` must point to a valid `Stay`.
+- Timestamps must be valid ISO strings (validated by regex or presence).
+- Document IDs must be alphanumeric and of reasonable size.
 
-## The "Dirty Dozen" Payloads
+## 2. The "Dirty Dozen" Payloads
 
-1. **Identity Spoofing**: Attempt to create a client with a `uid` that doesn't match `request.auth.uid`.
-2. **Cross-User Access**: User A attempts to read User B's clients.
-3. **Shadow Update**: Attempt to update a client with an extra field `isAdmin: true`.
-4. **ID Poisoning**: Attempt to create a client with a 2KB string as document ID.
-5. **Resource Exhaustion**: Attempt to save a note with 1MB of text.
-6. **Immutable Field Write**: Attempt to change the `uid` of an existing client.
-7. **Invalid Type**: Attempt to save `weight` as a string instead of a number.
-8. **Malicious Enum**: Attempt to set `sex` to 'X' instead of 'M' or 'F'.
-9. **Missing Required Field**: Attempt to save a client without the `name` field.
-10. **Timestamp Fraud**: Attempt to set `updatedAt` to a future date instead of `request.time`.
-11. **Relational Orphan**: (Not applicable as we don't have hard cross-collection links yet, but let's say creating an invoice for a non-existent client).
-12. **Blanket Query**: Attempt to list ALL clients in the system without a `userId` filter.
+### Payload 1: Unauthorized Client Write
+Attempt to create a client document without any authentication.
+```json
+{
+  "name": "Hack Er",
+  "email": "hacker@evil.com"
+}
+```
+**Expected: PERMISSION_DENIED**
 
-## Test Runner
-Stored in `firestore.rules.test.ts`.
+### Payload 2: Non-Admin Write
+Attempt to create a cat document as a logged-in user who is not in the `admins` collection.
+```json
+{
+  "owner_id": "client123",
+  "name": "Whiskers"
+}
+```
+**Expected: PERMISSION_DENIED**
+
+### Payload 3: Shadow Field Injection
+Attempt to add a `is_verified_admin: true` field to a client document.
+```json
+{
+  "name": "John Doe",
+  "is_verified_admin": true
+}
+```
+**Expected: PERMISSION_DENIED (Strict keys)**
+
+### Payload 4: ID Poisoning
+Attempt to create a stay with a 2MB string as ID.
+**Expected: PERMISSION_DENIED**
+
+### Payload 5: Invalid Data Type
+Attempt to set `box_number` as a string instead of a number.
+```json
+{
+  "cat_id": "cat123",
+  "box_number": "one",
+  "arrival_date": "2024-01-01",
+  "planned_departure": "2024-01-05"
+}
+```
+**Expected: PERMISSION_DENIED**
+
+### Payload 6: Orphaned Stay
+Attempt to create a stay for a `cat_id` that does not exist.
+**Expected: PERMISSION_DENIED**
+
+### Payload 7: Update Immutables
+Attempt to change `owner_id` of a `Cat` after creation.
+**Expected: PERMISSION_DENIED**
+
+### Payload 8: PII Leak via List
+Attempt to list all clients as a non-authenticated user.
+**Expected: PERMISSION_DENIED**
+
+### Payload 9: Size Exhaustion
+Attempt to save a 1MB string into a `comments` field.
+**Expected: PERMISSION_DENIED**
+
+### Payload 10: State Shortcut
+Attempt to mark an invoice as `paid` directly during creation (if logic expects `draft` first).
+**Expected: PERMISSION_DENIED**
+
+### Payload 11: Cross-Stay Injection
+Attempt to create a `HealthLog` with a `stay_id` belonging to a different owner/cat (not applicable for global admin but good for structure).
+**Expected: PERMISSION_DENIED**
+
+### Payload 12: Media Type Hijack
+Attempt to upload a `Media` document with `type: "shady-executable"`.
+**Expected: PERMISSION_DENIED**
+
+## 3. Test Runner Placeholder
+(Tests will be implemented in `firestore.rules.test.ts`)

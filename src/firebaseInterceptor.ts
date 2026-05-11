@@ -324,7 +324,7 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
               incident: log.incident, health_comments: log.comments
             };
           });
-        return jsonResponse(stays.sort((a, b) => b.arrival_date.localeCompare(a.arrival_date)));
+        return jsonResponse(stays.sort((a, b) => String(b.arrival_date || "").localeCompare(String(a.arrival_date || ""))));
       }
       if (method === 'POST') {
         try {
@@ -338,7 +338,7 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
     if (path.startsWith('/api/stays/')) {
       const id = path.split('/').pop()!;
       if (method === 'PUT') {
-        const { box_number, arrival_date, planned_departure, actual_departure, comments, ate_well, abnormal_behavior, medication, incident, health_comments, contract_scan_url } = body;
+        const { box_number, arrival_date, planned_departure, actual_departure, comments, ate_well, abnormal_behavior, medication, incident, health_comments, contract_scan_url, contract_urls } = body;
         
         const updateData: any = {};
         if (box_number !== undefined) updateData.box_number = box_number;
@@ -347,6 +347,7 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
         updateData.actual_departure = actual_departure === undefined ? null : actual_departure;
         if (comments !== undefined) updateData.comments = comments;
         if (contract_scan_url !== undefined) updateData.contract_scan_url = contract_scan_url;
+        if (contract_urls !== undefined) updateData.contract_urls = contract_urls;
 
         await updateDoc(doc(db, 'stays', id), updateData);
 
@@ -435,14 +436,14 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
             health_comments: log.comments
           };
         });
-      return jsonResponse(reports.sort((a, b: any) => b.stay_id.localeCompare(a.stay_id)));
+      return jsonResponse(reports.sort((a, b: any) => (b.stay_id || "").toString().localeCompare((a.stay_id || "").toString())));
     }
     if (path.startsWith('/api/health-logs')) {
       if (method === 'GET') {
         const stayId = path.split('/').pop()!;
         const snapAll = await getCachedDocs('health_logs');
         const snap = { docs: snapAll.docs.filter((d: any) => d.data()['stay_id'] === stayId) };
-        const logs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => b.date.localeCompare(a.date));
+        const logs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.date || "").localeCompare(a.date || ""));
         return jsonResponse(logs);
       }
       if (method === 'POST') {
