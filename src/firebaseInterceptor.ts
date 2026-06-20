@@ -338,7 +338,7 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
     if (path.startsWith('/api/stays/')) {
       const id = path.split('/').pop()!;
       if (method === 'PUT') {
-        const { box_number, arrival_date, planned_departure, actual_departure, comments, ate_well, abnormal_behavior, medication, incident, health_comments, contract_scan_url, contract_urls } = body;
+        const { box_number, arrival_date, planned_departure, actual_departure, comments, ate_well, abnormal_behavior, medication, incident, health_comments, contract_scan_url, contract_urls, is_archived } = body;
         
         const updateData: any = {};
         if (box_number !== undefined) updateData.box_number = box_number;
@@ -348,6 +348,7 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
         if (comments !== undefined) updateData.comments = comments;
         if (contract_scan_url !== undefined) updateData.contract_scan_url = contract_scan_url;
         if (contract_urls !== undefined) updateData.contract_urls = contract_urls;
+        if (is_archived !== undefined) updateData.is_archived = is_archived;
 
         await updateDoc(doc(db, 'stays', id), updateData);
 

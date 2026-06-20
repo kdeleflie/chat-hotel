@@ -84,13 +84,13 @@ app.get("/api/clients", (req, res) => {
 
 app.post("/api/clients", (req, res) => {
   console.log("Creating client:", req.body);
-  const { name, address, email, phone } = req.body;
+  const { name, address, email, phone, contact2_name, contact2_phone, contact2_email, contact2_address } = req.body;
   if (!name) {
     console.error("Client name is missing");
     return res.status(400).json({ error: "Name is required" });
   }
   try {
-    const result = db.prepare("INSERT INTO clients (name, address, email, phone) VALUES (?, ?, ?, ?)").run(name, address, email, phone);
+    const result = db.prepare("INSERT INTO clients (name, address, email, phone, contact2_name, contact2_phone, contact2_email, contact2_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(name, address, email, phone, contact2_name, contact2_phone, contact2_email, contact2_address);
     console.log("Client created with ID:", result.lastInsertRowid);
     res.json({ id: result.lastInsertRowid });
   } catch (err: any) {
@@ -100,8 +100,8 @@ app.post("/api/clients", (req, res) => {
 });
 
 app.put("/api/clients/:id", (req, res) => {
-  const { name, address, email, phone } = req.body;
-  db.prepare("UPDATE clients SET name = ?, address = ?, email = ?, phone = ? WHERE id = ?").run(name, address, email, phone, req.params.id);
+  const { name, address, email, phone, contact2_name, contact2_phone, contact2_email, contact2_address } = req.body;
+  db.prepare("UPDATE clients SET name = ?, address = ?, email = ?, phone = ?, contact2_name = ?, contact2_phone = ?, contact2_email = ?, contact2_address = ? WHERE id = ?").run(name, address, email, phone, contact2_name, contact2_phone, contact2_email, contact2_address, req.params.id);
   res.json({ success: true });
 });
 
@@ -611,7 +611,11 @@ async function startServer() {
       name TEXT NOT NULL,
       address TEXT,
       email TEXT,
-      phone TEXT
+      phone TEXT,
+      contact2_name TEXT,
+      contact2_phone TEXT,
+      contact2_email TEXT,
+      contact2_address TEXT
     );
 
     CREATE TABLE IF NOT EXISTS cats (

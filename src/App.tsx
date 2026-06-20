@@ -4,6 +4,10 @@ export interface Client {
   address: string;
   email: string;
   phone: string;
+  contact2_name?: string;
+  contact2_phone?: string;
+  contact2_email?: string;
+  contact2_address?: string;
 }
 
 export interface Cat {
@@ -53,6 +57,7 @@ export interface Stay {
   health_comments?: string;
   contract_scan_url?: string;
   contract_urls?: string[];
+  health_sheet_scan_url?: string;
   is_archived?: boolean | number | string;
 }
 
@@ -128,6 +133,7 @@ export interface Settings {
   company_acaced?: string;
   payment_methods?: string[];
   invoice_statuses?: Record<string, InvoiceStatusConfig>;
+  health_conditions?: string;
 }
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
@@ -2084,7 +2090,7 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [formData, setFormData] = useState({ name: "", address: "", email: "", phone: "" });
+  const [formData, setFormData] = useState({ name: "", address: "", email: "", phone: "", contact2_name: "", contact2_phone: "", contact2_email: "", contact2_address: "" });
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
 
@@ -2139,7 +2145,7 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
       showToast("Client enregistré avec succès !");
       setIsAdding(false);
       setEditingClient(null);
-      setFormData({ name: "", address: "", email: "", phone: "" });
+      setFormData({ name: "", address: "", email: "", phone: "", contact2_name: "", contact2_phone: "", contact2_email: "", contact2_address: "" });
       onUpdate();
     } catch (error: any) {
       console.error("Save error:", error);
@@ -2183,7 +2189,7 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
             onChange={e => setSearch(e.target.value)}
           />
           <button 
-            onClick={() => { setIsAdding(true); setEditingClient(null); setFormData({ name: "", address: "", email: "", phone: "" }); }}
+            onClick={() => { setIsAdding(true); setEditingClient(null); setFormData({ name: "", address: "", email: "", phone: "", contact2_name: "", contact2_phone: "", contact2_email: "", contact2_address: "" }); }}
             className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors text-sm font-bold"
           >
             <Plus size={18} /> Nouveau Client
@@ -2234,6 +2240,46 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
                 onChange={e => setFormData({ ...formData, address: e.target.value })}
               />
             </div>
+            
+            {/* Personne de confiance */}
+            <div className="col-span-1 sm:col-span-2 pt-4 pb-2">
+              <h4 className="font-bold text-sm text-stone-700">Contact de confiance (Optionnel)</h4>
+              <p className="text-xs text-stone-500">Au cas où le contact principal n'est pas joignable.</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-stone-500 uppercase">Nom Complet</label>
+              <input 
+                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={formData.contact2_name || ""}
+                onChange={e => setFormData({ ...formData, contact2_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-stone-500 uppercase">Téléphone</label>
+              <input 
+                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={formData.contact2_phone || ""}
+                onChange={e => setFormData({ ...formData, contact2_phone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-stone-500 uppercase">Email</label>
+              <input 
+                type="email"
+                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={formData.contact2_email || ""}
+                onChange={e => setFormData({ ...formData, contact2_email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-stone-500 uppercase">Adresse</label>
+              <input 
+                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={formData.contact2_address || ""}
+                onChange={e => setFormData({ ...formData, contact2_address: e.target.value })}
+              />
+            </div>
+
             <div className="col-span-2 flex justify-end gap-2 pt-4">
               <button type="button" onClick={() => { setIsAdding(false); setEditingClient(null); }} className="px-4 py-2 text-stone-500 font-medium">Annuler</button>
               <button type="submit" className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-medium flex items-center gap-2">
@@ -2259,7 +2305,11 @@ function ClientsView({ clients, cats, stays, settings, onUpdate, showToast, askC
                     name: client.name || "",
                     address: client.address || "",
                     email: client.email || "",
-                    phone: client.phone || ""
+                    phone: client.phone || "",
+                    contact2_name: client.contact2_name || "",
+                    contact2_phone: client.contact2_phone || "",
+                    contact2_email: client.contact2_email || "",
+                    contact2_address: client.contact2_address || ""
                   }); 
                 }} className="p-2 text-stone-400 hover:text-emerald-600"><Edit size={18} /></button>
                 <button onClick={() => handleDelete(client.id)} className="p-2 text-stone-400 hover:text-red-600"><Trash2 size={18} /></button>
@@ -2411,6 +2461,13 @@ function ClientDashboard({ client, cats, stays, settings, onBack, onUpdate, show
             <h2 className="text-2xl font-bold">{client.name}</h2>
             <p className="text-stone-500">{client.email} • {client.phone}</p>
             <p className="text-stone-500 text-sm">{client.address}</p>
+            {client.contact2_name && (
+              <div className="mt-4 p-3 bg-stone-50 rounded-lg border border-stone-100">
+                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Contact de confiance</span>
+                <p className="text-sm font-semibold text-stone-700">{client.contact2_name}</p>
+                <p className="text-xs text-stone-500">{[client.contact2_phone, client.contact2_email].filter(Boolean).join(" • ")}</p>
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <button onClick={() => setActiveMenu("add_cat")} className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-200">
@@ -2857,6 +2914,9 @@ function SettingsView({ settings, onUpdate, showToast, askConfirm }: { settings:
   const [restoring, setRestoring] = useState(false);
   const [restoreLogs, setRestoreLogs] = useState<string[]>([]);
   const [totalBoxes, setTotalBoxes] = useState(settings.total_boxes || "3");
+  const [healthConditions, setHealthConditions] = useState(
+    settings.health_conditions || "Nez qui coule\nYeux qui pleurent\nDémangeaisons"
+  );
   const [generalConditions, setGeneralConditions] = useState(settings.general_conditions || "");
   const [companyInfo, setCompanyInfo] = useState({
     company_name: settings.company_name || "",
@@ -2873,6 +2933,7 @@ function SettingsView({ settings, onUpdate, showToast, askConfirm }: { settings:
 
   useEffect(() => {
     setGeneralConditions(settings.general_conditions || "");
+    setHealthConditions(settings.health_conditions || "Nez qui coule\nYeux qui pleurent\nDémangeaisons");
     setTotalBoxes(settings.total_boxes || "3");
     setTempStatuses(settings.invoice_statuses || DEFAULT_INVOICE_STATUS_LABELS);
     setCompanyInfo({
@@ -3145,6 +3206,25 @@ function SettingsView({ settings, onUpdate, showToast, askConfirm }: { settings:
                 className="bg-stone-800 text-white px-4 py-2 rounded-lg text-sm font-bold self-start"
               >
                 Enregistrer les conditions
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-stone-500 uppercase">État de santé de l'animal (à cocher dans le contrat)</label>
+            <p className="text-xs text-stone-400">Saisissez un élément par ligne. Ces options seront ajoutées en bas du contrat pour signature.</p>
+            <div className="flex flex-col gap-2 mt-2">
+              <textarea 
+                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none h-24 resize-y"
+                value={healthConditions}
+                onChange={e => setHealthConditions(e.target.value)}
+                placeholder="Nez qui coule&#10;Yeux qui pleurent&#10;..."
+              />
+              <button 
+                onClick={() => handleSaveSetting("health_conditions", healthConditions)}
+                className="bg-stone-800 text-white px-4 py-2 rounded-lg text-sm font-bold self-start mt-1"
+              >
+                Enregistrer la liste de santé
               </button>
             </div>
           </div>
@@ -3989,12 +4069,46 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
     s.owner_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleUploadScan = async (stay: Stay, file: File) => {
+  const openBase64File = (base64String: string) => {
+    if (!base64String) return;
+    try {
+      if (base64String.startsWith('http')) {
+        window.open(base64String, '_blank');
+        return;
+      }
+      const arr = base64String.split(',');
+      const mimeMatch = arr[0].match(/:(.*?);/);
+      if (!mimeMatch) {
+         window.open(base64String, '_blank');
+         return;
+      }
+      const mime = mimeMatch[1];
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const newTab = window.open(url, '_blank');
+      // Release object URL after some time
+      setTimeout(() => URL.revokeObjectURL(url), 1000 * 60);
+      if (!newTab) {
+         showToast("Veuillez autoriser les pop-ups pour voir le document.", "error");
+      }
+    } catch (e) {
+      console.error(e);
+      window.open(base64String, '_blank');
+    }
+  };
+
+  const handleUploadScan = async (stay: Stay, file: File, docType: 'contract' | 'health_sheet' = 'contract') => {
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
       return showToast("Le fichier doit être une image ou un PDF.", "error");
     }
     
-    setUploadingId(stay.id);
+    setUploadingId(stay.id + '_' + docType);
     
     try {
       let base64 = "";
@@ -4040,15 +4154,20 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
          });
       }
 
-      const updatedUrls = [...(stay.contract_urls || []), base64];
+      let updatePayload: Partial<Stay>;
+      if (docType === 'contract') {
+        updatePayload = { contract_urls: [...(stay.contract_urls || []), base64] };
+      } else {
+        updatePayload = { health_sheet_scan_url: base64 };
+      }
 
       const res = await fetch(`/api/stays/${stay.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...stay, contract_urls: updatedUrls })
+        body: JSON.stringify({ ...stay, ...updatePayload })
       });
       if (!res.ok) throw new Error("Erreur de sauvegarde.");
-      showToast("Contrat ajouté avec succès !");
+      showToast("Document ajouté avec succès !");
       onUpdate();
     } catch (e: any) {
       showToast(e.message, "error");
@@ -4073,6 +4192,27 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
           });
           if (!res.ok) throw new Error("Erreur de sauvegarde.");
           showToast("Contrat supprimé !");
+          onUpdate();
+        } catch (e: any) {
+          showToast(e.message, "error");
+        }
+      }
+    );
+  };
+
+  const removeHealthSheet = (stay: Stay) => {
+    askConfirm(
+      "Supprimer cette fiche sanitaire ?",
+      "Voulez-vous supprimer ce fichier de fiche sanitaire ?",
+      async () => {
+        try {
+          const res = await fetch(`/api/stays/${stay.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...stay, health_sheet_scan_url: null })
+          });
+          if (!res.ok) throw new Error("Erreur de sauvegarde.");
+          showToast("Fiche sanitaire supprimée !");
           onUpdate();
         } catch (e: any) {
           showToast(e.message, "error");
@@ -4225,6 +4365,235 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
     doc.save(`Contrat_${stay.owner_name}_${stay.cat_name}_${stay.arrival_date}.pdf`);
   };
 
+  const generateHealthSheetPDF = (stay: Stay) => {
+    const doc = new jsPDF();
+    
+    // Logo
+    if (settings.logo) {
+      try {
+        const formatMatch = settings.logo.match(/data:image\/([a-zA-Z]*);base64,/);
+        const imageFormat = formatMatch ? formatMatch[1].toUpperCase() : "JPEG";
+        doc.addImage(settings.logo, imageFormat, 14, 10, 30, 30);
+      } catch (e) {
+        console.error("Error adding logo to PDF:", e);
+      }
+    }
+
+    doc.setFontSize(20);
+    doc.text("Fiche d'admission et de suivi sanitaire", 105, 25, { align: "center" });
+
+    // Company Info
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    
+    let yPos = 45;
+    const companyName = settings.company_name || "LA PENSION DU CHEMIN VERT";
+    const nameLines = doc.splitTextToSize(companyName, 120);
+    doc.text(nameLines, 14, yPos);
+    yPos += (nameLines.length * 5);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    if (settings.company_owner) { doc.text(settings.company_owner, 14, yPos); yPos += 4; }
+    if (settings.company_address) { 
+      const addrLines = doc.splitTextToSize(settings.company_address, 120);
+      doc.text(addrLines, 14, yPos);
+      yPos += (addrLines.length * 4);
+    }
+    if (settings.company_phone) { doc.text(settings.company_phone, 14, yPos); yPos += 4; }
+    if (settings.company_email) { doc.text(settings.company_email, 14, yPos); yPos += 4; }
+    if (settings.company_siret) { doc.text(`SIRET : ${settings.company_siret}`, 14, yPos); yPos += 4; }
+    if (settings.company_acaced) { doc.text(`ACACED : ${settings.company_acaced}`, 14, yPos); yPos += 4; }
+
+    const clientInfoY = Math.max(95, yPos + 25);
+    let currentY = clientInfoY;
+
+    doc.setFontSize(12);
+    doc.text(`Date d'édition: ${format(new Date(), "dd/MM/yyyy")}`, 140, 45);
+    
+    // Client & Animal Info (Side by Side)
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Informations du Client", 14, currentY - 10);
+    doc.text("Informations de l'Animal", 105, currentY - 10);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    
+    // Left Column: Client
+    doc.text(`Nom: ${stay.owner_name || "-"}`, 14, currentY);
+    let leftY = currentY + 7;
+    if (stay.owner_address) {
+      const addrLines = doc.splitTextToSize(`Adresse: ${stay.owner_address}`, 80);
+      doc.text(addrLines, 14, leftY);
+      leftY += (addrLines.length * 5);
+    }
+    if (stay.owner_phone) {
+      const phoneLines = doc.splitTextToSize(`Téléphone: ${stay.owner_phone}`, 80);
+      doc.text(phoneLines, 14, leftY);
+      leftY += (phoneLines.length * 5);
+    }
+    if (stay.owner_email) {
+      doc.text(`Email: ${stay.owner_email}`, 14, leftY);
+      leftY += 7;
+    }
+
+    // Right Column: Animal
+    doc.text(`Nom: ${stay.cat_name || "-"}`, 105, currentY);
+    let rightY = currentY + 7;
+    doc.text(`Age: ${stay.cat_age || (stay.cat_birth_date ? calculateAge(stay.cat_birth_date) : "-")}`, 105, rightY); rightY += 7;
+    doc.text(`Race: ${stay.cat_breed || "-"}`, 105, rightY); rightY += 7;
+    doc.text(`Couleur: ${stay.cat_color || "-"}`, 105, rightY); rightY += 7;
+    doc.text(`N° Puce: ${stay.cat_chip_number || "-"}`, 105, rightY); rightY += 7;
+    
+    // Health Info (Right Column)
+    doc.setFont("helvetica", "bold");
+    doc.text("Santé de l'animal:", 105, rightY + 5);
+    doc.setFont("helvetica", "normal");
+    rightY += 10;
+    doc.text(`Vaccins (TC): ${formatDateSafe(stay.cat_vaccine_tc_date, "___/___/_____")}`, 105, rightY); rightY += 5;
+    doc.text(`Leucose (L): ${formatDateSafe(stay.cat_vaccine_l_date, "___/___/_____")}`, 105, rightY); rightY += 5;
+    doc.text(`Parasitaire: ${formatDateSafe(stay.cat_parasite_treatment_date, "___/___/_____")}`, 105, rightY); rightY += 5;
+
+    // Stay Details (Below Client Info)
+    currentY = Math.max(leftY, rightY) + 15;
+    
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Détails du Séjour", 14, currentY);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    currentY += 10;
+    doc.text(`Date d'arrivée: ${format(new Date(stay.arrival_date), "dd/MM/yyyy")}`, 14, currentY); currentY += 7;
+    doc.text(`Date de départ prévue: ${format(new Date(stay.planned_departure), "dd/MM/yyyy")}`, 14, currentY); currentY += 7;
+    doc.text(`Box attribué: ${stay.box_number}`, 14, currentY); currentY += 7;
+
+    currentY += 15;
+
+    // Health Checkboxes
+    const rawHealth = settings.health_conditions || "Nez qui coule\nYeux qui pleurent\nDémangeaisons";
+    const healthOptions = rawHealth.split('\n').map((s: string) => s.trim()).filter(Boolean);
+    
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
+    }
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Poids de l'animal à l'arrivée :", 14, currentY);
+    doc.setFont("helvetica", "normal");
+    doc.text(".......................... kg", 75, currentY);
+    currentY += 15;
+    
+    if (healthOptions.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("État de santé à l'arrivée (à cocher par le client) :", 14, currentY);
+      currentY += 8;
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      
+      let startY = currentY;
+      healthOptions.forEach((opt: string, index: number) => {
+        const xPos = index % 2 === 0 ? 14 : 105;
+        const yPosRect = startY + Math.floor(index / 2) * 8;
+        
+        if (yPosRect > 280) {
+          doc.addPage();
+          startY = 20 - Math.floor(index / 2) * 8;
+        }
+        
+        doc.rect(xPos, yPosRect - 3, 4, 4);
+        doc.text(opt, xPos + 6, yPosRect);
+        currentY = yPosRect + 8;
+      });
+      
+      // Champ libre pour Autre
+      const otherIndex = healthOptions.length;
+      const xOther = otherIndex % 2 === 0 ? 14 : 105;
+      const yOther = startY + Math.floor(otherIndex / 2) * 8;
+      doc.rect(xOther, yOther - 3, 4, 4);
+      doc.text("Autre (préciser) : ............................................................................", xOther + 6, yOther);
+      
+      currentY = yOther + 15;
+    }
+
+    if (currentY > 240) {
+      doc.addPage();
+      currentY = 20;
+    }
+    
+    // Medications
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Prise de médicaments / Posologie :", 14, currentY); 
+    currentY += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(".....................................................................................................................................................", 14, currentY); currentY += 8;
+    doc.text(".....................................................................................................................................................", 14, currentY); currentY += 15;
+
+    if (currentY > 200) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    // Routine Alimentaire
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("ROUTINE ALIMENTAIRE", 14, currentY);
+    currentY += 8;
+    
+    doc.setFontSize(10);
+    doc.text("Type d'alimentation :", 14, currentY); currentY += 6;
+    doc.setFont("helvetica", "normal");
+    
+    const alimentairesTypes = ["Croquettes", "Pâtée", "Mixte", "Humide"];
+    alimentairesTypes.forEach((t, i) => {
+      doc.rect(14 + (i * 35), currentY - 3, 4, 4);
+      doc.text(t, 20 + (i * 35), currentY);
+    });
+    currentY += 10;
+    
+    doc.setFont("helvetica", "bold");
+    doc.text("Quantité totale par jour :", 14, currentY); currentY += 6;
+    doc.setFont("helvetica", "normal");
+    doc.text("- de croquettes : ..................................................................................................................", 14, currentY); currentY += 6;
+    doc.text("- sachets ou boîtes de pâtée : .....................................................................................................", 14, currentY); currentY += 10;
+    
+    doc.setFont("helvetica", "bold");
+    doc.text("Mode de distribution :", 14, currentY); currentY += 6;
+    doc.setFont("helvetica", "normal");
+    doc.rect(14, currentY - 3, 4, 4);
+    doc.text("À volonté (Le chat se régule seul sur sa journée).", 20, currentY); currentY += 8;
+    doc.rect(14, currentY - 3, 4, 4);
+    doc.text("Fractionné en ........ repas par jour.", 20, currentY); currentY += 10;
+    
+    doc.setFont("helvetica", "bold");
+    doc.text("Consignes particulières / Restrictions :", 14, currentY); currentY += 8;
+    doc.setFont("helvetica", "normal");
+    doc.text(".....................................................................................................................................................", 14, currentY); currentY += 8;
+    doc.text(".....................................................................................................................................................", 14, currentY); currentY += 8;
+    doc.text(".....................................................................................................................................................", 14, currentY); currentY += 15;
+
+    // Signatures
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    doc.setFontSize(12);
+    doc.text("Signatures", 14, currentY);
+    doc.setFontSize(10);
+    doc.text("Le Client (lu et approuvé)", 14, currentY + 10);
+    doc.text(settings.company_name || "La Pension", 120, currentY + 10);
+
+    doc.save(`Fiche_Sanitaire_${stay.owner_name}_${stay.cat_name}_${stay.arrival_date}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -4260,62 +4629,90 @@ function ContractsView({ stays, settings, onUpdate, showToast, askConfirm }: { s
                 </td>
                 <td className="p-4">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <button 
-                      onClick={() => generateContractPDF(stay)} 
-                      className="text-indigo-600 hover:text-indigo-800 text-sm font-bold bg-indigo-50 px-3 py-1 rounded-lg transition-colors flex items-center gap-2"
-                    >
-                      <FileText size={16} /> Générer PDF
-                    </button>
-                    {(stay.contract_urls || []).length === 0 && !uploadingId && (
-                      <label className={`cursor-pointer text-emerald-600 hover:text-emerald-800 text-sm font-bold bg-emerald-50 px-3 py-1 rounded-lg transition-colors flex items-center gap-2 ${uploadingId === stay.id ? 'opacity-50 pointer-events-none' : ''}`}>
-                        <Upload size={16} /> {uploadingId === stay.id ? "Envoi..." : "Uploader Signé"}
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          accept="image/*,application/pdf"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleUploadScan(stay, e.target.files[0]);
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                    )}
-                    
                     <div className="flex flex-col gap-2">
-                      {(stay.contract_urls || []).map((url, idx) => (
-                        <div key={idx} className="flex items-center gap-1 group/item">
-                          <a 
-                            href={url} 
-                            target="_blank"
-                            rel="noreferrer"
-                            className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-3 py-1 rounded-l-lg text-xs font-bold flex items-center gap-2 hover:bg-emerald-100 transition-colors"
-                          >
-                            <FileText size={14} /> Contrat {idx + 1}
-                          </a>
-                          <button 
-                            onClick={() => removeContract(stay, idx)}
-                            className="bg-red-50 border border-red-100 text-red-500 px-2 py-1 rounded-r-lg hover:bg-red-100 transition-colors"
-                            title="Supprimer"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))}
-                      {(stay.contract_urls || []).length > 0 && (
-                        <label className="cursor-pointer text-emerald-600 hover:text-emerald-800 text-[10px] font-bold bg-stone-50 px-2 py-1 rounded border border-stone-200 text-center hover:bg-stone-100 transition-colors w-fit">
-                          + Ajouter un autre
-                          <input 
-                            type="file" 
-                            className="hidden" 
-                            accept="image/*,application/pdf"
-                            onChange={(e) => {
-                              if (e.target.files?.[0]) handleUploadScan(stay, e.target.files[0]);
-                              e.target.value = '';
-                            }}
-                          />
-                        </label>
-                      )}
-                      {uploadingId === stay.id && <span className="text-[10px] text-emerald-600 animate-pulse font-bold">Téléchargement...</span>}
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => generateContractPDF(stay)} 
+                          className="text-indigo-600 hover:text-indigo-800 text-[11px] font-bold bg-indigo-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                          title="Générer le contrat"
+                        >
+                          <FileText size={14} /> Contrat
+                        </button>
+                        {(stay.contract_urls || []).length === 0 && !uploadingId && (
+                          <label className={`cursor-pointer text-emerald-600 hover:text-emerald-800 text-[11px] font-bold bg-emerald-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 ${uploadingId === stay.id + '_contract' ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <Upload size={14} /> {uploadingId === stay.id + '_contract' ? "Envoi..." : "Uploader Signé"}
+                            <input 
+                              type="file" 
+                              className="hidden" 
+                              accept="image/*,application/pdf"
+                              onChange={(e) => {
+                                if (e.target.files?.[0]) handleUploadScan(stay, e.target.files[0], 'contract');
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                        )}
+                        {(stay.contract_urls || []).map((url, idx) => (
+                          <div key={idx} className="flex items-center gap-0 group/item">
+                            <button 
+                              onClick={() => openBase64File(url)} 
+                              className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-1 rounded-l-lg text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                            >
+                              <FileText size={12} /> C{idx + 1}
+                            </button>
+                            <button 
+                              onClick={() => removeContract(stay, idx)}
+                              className="bg-red-50 border border-red-100 text-red-500 px-1.5 py-1 rounded-r-lg hover:bg-red-100 transition-colors"
+                              title="Supprimer"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => generateHealthSheetPDF(stay)} 
+                          className="text-orange-600 hover:text-orange-800 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                          title="Générer la fiche d'admission"
+                        >
+                          <HeartPulse size={14} /> Fiche Sanitaire
+                        </button>
+                        {!stay.health_sheet_scan_url && !uploadingId && (
+                          <label className={`cursor-pointer text-emerald-600 hover:text-emerald-800 text-[11px] font-bold bg-emerald-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 ${uploadingId === stay.id + '_health_sheet' ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <Upload size={14} /> {uploadingId === stay.id + '_health_sheet' ? "Envoi..." : "Uploader Signé"}
+                            <input 
+                              type="file" 
+                              className="hidden" 
+                              accept="image/*,application/pdf"
+                              onChange={(e) => {
+                                if (e.target.files?.[0]) handleUploadScan(stay, e.target.files[0], 'health_sheet');
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                        )}
+                        {stay.health_sheet_scan_url && (
+                          <div className="flex items-center gap-0 group/item">
+                            <button 
+                              onClick={() => openBase64File(stay.health_sheet_scan_url!)} 
+                              className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-1 rounded-l-lg text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                            >
+                              <HeartPulse size={12} /> Signée
+                            </button>
+                            <button 
+                              onClick={() => removeHealthSheet(stay)}
+                              className="bg-red-50 border border-red-100 text-red-500 px-1.5 py-1 rounded-r-lg hover:bg-red-100 transition-colors"
+                              title="Supprimer"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {uploadingId?.startsWith(stay.id) && <span className="text-[10px] text-emerald-600 animate-pulse font-bold">Téléchargement...</span>}
                     </div>
                   </div>
                 </td>
