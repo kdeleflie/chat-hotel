@@ -918,11 +918,14 @@ function UpcomingStayCard({
   }, [stay.id]);
 
   const depositInvoice = invoices.find((inv) => inv.type === "deposit");
+  const finalInvoice = invoices.find((inv) => inv.type === "final");
   const today = format(new Date(), "yyyy-MM-dd");
 
   let isAlert = false;
   let dueDate: Date | null = null;
-  if (stay.arrival_date && depositInvoice && depositInvoice.reference_total) {
+  const isFullyPaid = finalInvoice && (finalInvoice.status === "paid" || finalInvoice.status === "refunded");
+
+  if (stay.arrival_date && depositInvoice && depositInvoice.reference_total && !isFullyPaid) {
     dueDate = new Date(stay.arrival_date);
     dueDate.setDate(dueDate.getDate() - 7);
     const diffDays = Math.ceil(
@@ -930,14 +933,13 @@ function UpcomingStayCard({
     );
     isAlert =
       diffDays <= 7 &&
-      depositInvoice.status !== "paid" &&
-      depositInvoice.status !== "acquittee";
+      depositInvoice.status !== "paid";
   }
 
   return (
     <div
       onClick={onClick}
-      className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-2 cursor-pointer transition-all ${isAlert ? "border-orange-400 hover:border-orange-500 shadow-orange-100" : "border-emerald-100 hover:border-emerald-300 hover:shadow-md"}`}
+      className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-2 cursor-pointer transition-all ${isAlert ? "border-orange-400 hover:border-orange-500 shadow-orange-100" : isFullyPaid ? "border-emerald-300 hover:border-emerald-400 shadow-emerald-50" : "border-emerald-100 hover:border-emerald-300 hover:shadow-md"}`}
     >
       <div className="flex justify-between items-start">
         <div className="flex flex-col">
@@ -971,7 +973,13 @@ function UpcomingStayCard({
         Box:{" "}
         <span className="font-medium text-stone-700">{stay.box_number}</span>
       </div>
-      {depositInvoice && depositInvoice.reference_total && dueDate && (
+      {isFullyPaid ? (
+        <div className="mt-2 pt-2 border-t border-emerald-100 flex flex-col gap-0.5">
+          <p className="text-[10px] font-bold text-emerald-600">
+            ✓ Séjour réglé dans son intégralité
+          </p>
+        </div>
+      ) : depositInvoice && depositInvoice.reference_total && dueDate ? (
         <div className="mt-2 pt-2 border-t border-stone-100 flex flex-col gap-0.5">
           <p className="text-[10px] text-stone-500">
             <span className="font-semibold">Total séjour:</span>{" "}
@@ -988,7 +996,7 @@ function UpcomingStayCard({
             Date butoir solde : {format(dueDate, "dd/MM/yyyy")}
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -2688,21 +2696,29 @@ function InvoiceSection({
                 </p>
                 {inv.type === "deposit" && inv.reference_total && (
                   <div className="mt-1 flex flex-col gap-0.5">
-                    <p className="text-[10px] text-stone-500">
-                      <span className="font-semibold">Total séjour:</span> {inv.reference_total.toFixed(2)} € | <span className="font-semibold">Reste à payer:</span> {(inv.reference_total - inv.amount).toFixed(2)} €
-                    </p>
-                    {(() => {
-                       if (!stay.arrival_date) return null;
-                       const dueDate = new Date(stay.arrival_date);
-                       dueDate.setDate(dueDate.getDate() - 7);
-                       const diffDays = Math.ceil((dueDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-                       const isAlert = diffDays <= 7 && inv.status !== 'paid' && inv.status !== 'acquittee';
-                       return (
-                         <p className={`text-[10px] font-bold ${isAlert ? 'text-orange-500' : 'text-stone-500'}`}>
-                           Date butoir solde : {format(dueDate, "dd/MM/yyyy")}
-                         </p>
-                       );
-                    })()}
+                    {invoices.some((i) => i.type === "final" && (i.status === "paid" || i.status === "refunded")) ? (
+                      <p className="text-[10px] font-bold text-emerald-600">
+                        ✓ Séjour réglé dans son intégralité
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-[10px] text-stone-500">
+                          <span className="font-semibold">Total séjour:</span> {inv.reference_total.toFixed(2)} € | <span className="font-semibold">Reste à payer:</span> {(inv.reference_total - inv.amount).toFixed(2)} €
+                        </p>
+                        {(() => {
+                          if (!stay.arrival_date) return null;
+                          const dueDate = new Date(stay.arrival_date);
+                          dueDate.setDate(dueDate.getDate() - 7);
+                          const diffDays = Math.ceil((dueDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                          const isAlert = diffDays <= 7 && inv.status !== 'paid';
+                          return (
+                            <p className={`text-[10px] font-bold ${isAlert ? 'text-orange-500' : 'text-stone-500'}`}>
+                              Date butoir solde : {format(dueDate, "dd/MM/yyyy")}
+                            </p>
+                          );
+                        })()}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
