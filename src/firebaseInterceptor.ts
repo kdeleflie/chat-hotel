@@ -217,6 +217,42 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
           handleFirestoreError(err, OperationType.UPDATE, `clients/${id}`);
         }
       }
+
+      if (method === 'PUT') {
+        try {
+          const { date, time, temperature, humidity, animal_count, animalLogs } = body;
+          
+          // Update env log
+          await updateDoc(doc(db, 'daily_environment_logs', id), {
+            date, time, temperature, humidity, animal_count
+          });
+          
+          // Update animal logs - simplest way is to delete old ones and recreate
+          const animalLogsSnap = await getCachedDocs('daily_animal_logs');
+          const oldLogs = animalLogsSnap.docs.filter((d: any) => d.data().daily_env_log_id === id);
+          for (const l of oldLogs) {
+             await deleteDoc(doc(db, 'daily_animal_logs', l.id));
+          }
+          
+          for (const al of animalLogs) {
+            await addDoc(collection(db, 'daily_animal_logs'), {
+              daily_env_log_id: id,
+              stay_id: al.stay_id,
+              litter_used: al.litter_used,
+              meal_eaten: al.meal_eaten,
+              behavior: al.behavior,
+              gets_along: al.gets_along,
+              is_present: al.is_present,
+              absence_reason: al.absence_reason || null
+            });
+          }
+                    
+          return jsonResponse({ success: true });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, 'daily_tracking');
+        }
+      }
+
       if (method === 'DELETE') {
         try {
           // Recursive delete: Cats -> Stays -> Related
@@ -567,6 +603,214 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
           return jsonResponse({ success: true });
         } catch (err) {
           handleFirestoreError(err, OperationType.DELETE, `invoices/${id}`);
+        }
+      }
+    }
+
+    
+    
+    if (path === '/api/daily-tracking/history') {
+      if (method === 'GET') {
+        const envLogsSnap = await getCachedDocs('daily_environment_logs');
+        let envLogDocs = envLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        envLogDocs.sort((a: any, b: any) => {
+          const cmp = (b.date || "").localeCompare(a.date || "");
+          if (cmp !== 0) return cmp;
+          return (b.time || "").localeCompare(a.time || "");
+        });
+        return jsonResponse(envLogDocs);
+      }
+    }
+
+    
+    if (path === '/api/daily-tracking/animal-logs') {
+      if (method === 'GET') {
+        const [animalLogsSnap, envLogsSnap, staysSnap, catsSnap] = await Promise.all([
+          getCachedDocs('daily_animal_logs'),
+          getCachedDocs('daily_environment_logs'),
+          getCachedDocs('stays'),
+          getCachedDocs('cats')
+        ]);
+
+        const envLogs = envLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const stays = staysSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const cats = catsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+
+        const logs = animalLogsSnap.docs.map((d: any) => {
+          const al = { id: d.id, ...d.data() };
+          const del = envLogs.find((e: any) => e.id === al.daily_env_log_id) || {};
+          const stay = stays.find((s: any) => s.id === al.stay_id) || {};
+          const cat = stay.cat_id ? cats.find((c: any) => c.id === stay.cat_id) : null;
+
+          return {
+            ...al,
+            date: del.date || '',
+            time: del.time || '',
+            temperature: del.temperature || null,
+            humidity: del.humidity || null,
+            cat_name: cat ? cat.name : 'Inconnu',
+            box_number: stay.box_number || '',
+            litter_used: al.litter_used === true || al.litter_used === 1,
+            gets_along: al.gets_along === true || al.gets_along === 1,
+            is_present: al.is_present !== false && al.is_present !== 0
+          };
+        });
+
+        logs.sort((a, b) => {
+          const cmp = (b.date || "").localeCompare(a.date || "");
+          if (cmp !== 0) return cmp;
+          return (b.time || "").localeCompare(a.time || "");
+        });
+
+        return jsonResponse(logs);
+      }
+    }
+
+    
+    const dailyTrackingMatch = path.match(/^\/api\/daily-tracking\/(.+)$/);
+    if (dailyTrackingMatch && path !== '/api/daily-tracking/history' && path !== '/api/daily-tracking/animal-logs') {
+      const id = dailyTrackingMatch[1];
+      if (method === 'DELETE') {
+        try {
+          await deleteDoc(doc(db, 'daily_environment_logs', id));
+                    
+          // Delete associated animal logs
+          const animalLogsSnap = await getCachedDocs('daily_animal_logs');
+          const logsToDelete = animalLogsSnap.docs.filter((d: any) => d.data().daily_env_log_id === id);
+          for (const l of logsToDelete) {
+             await deleteDoc(doc(db, 'daily_animal_logs', l.id));
+          }
+          if (logsToDelete.length > 0) {
+                       }
+
+          return jsonResponse({ success: true });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, 'daily_tracking');
+        }
+      }
+      if (method === 'PUT') {
+        try {
+          await updateDoc(doc(db, 'daily_environment_logs', id), {
+            date: body.date,
+            time: body.time,
+            temperature: body.temperature,
+            humidity: body.humidity,
+            animal_count: body.animal_count
+          });
+
+          // Delete existing animal logs
+          const animalLogsSnap = await getCachedDocs('daily_animal_logs');
+          const logsToDelete = animalLogsSnap.docs.filter((d: any) => d.data().daily_env_log_id === id);
+          for (const l of logsToDelete) {
+             await deleteDoc(doc(db, 'daily_animal_logs', l.id));
+          }
+
+          // Insert updated ones
+          for (const al of body.animalLogs) {
+            await addDoc(collection(db, 'daily_animal_logs'), {
+              daily_env_log_id: id,
+              stay_id: al.stay_id,
+              litter_used: al.litter_used,
+              meal_eaten: al.meal_eaten,
+              behavior: al.behavior ?? null,
+              gets_along: al.gets_along,
+              is_present: al.is_present,
+              absence_reason: al.absence_reason || null
+            });
+          }
+
+          return jsonResponse({ success: true });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `daily_tracking/${id}`);
+        }
+      }
+    }
+
+    // --- DAILY TRACKING ---
+    if (path === '/api/daily-tracking') {
+      if (method === 'GET') {
+        const date = searchParams.get('date');
+        const id = searchParams.get('id');
+        const envLogsSnap = await getCachedDocs('daily_environment_logs');
+        let envLogDocs = envLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        
+        let envLog;
+        if (id) {
+          envLog = envLogDocs.find((d: any) => d.id === id);
+        } else if (date) {
+          envLogDocs = envLogDocs.filter((d: any) => d.date === date);
+          envLog = envLogDocs.sort((a: any, b: any) => {
+            const timeA = a.time || '';
+            const timeB = b.time || '';
+            if (timeA !== timeB) return timeB.localeCompare(timeA);
+            return b.id?.localeCompare(a.id) || 0;
+          })[0];
+        } else {
+          envLog = envLogDocs.sort((a: any, b: any) => {
+             const cmp = (b.date || '').localeCompare(a.date || '');
+             if (cmp !== 0) return cmp;
+             const timeCmp = (b.time || '').localeCompare(a.time || '');
+             if (timeCmp !== 0) return timeCmp;
+             return b.id?.localeCompare(a.id) || 0;
+          })[0];
+        }
+
+        if (!envLog) {
+          return jsonResponse({ envLog: null, animalLogs: [] });
+        }
+
+        const animalLogsSnap = await getCachedDocs('daily_animal_logs');
+        let animalLogs = animalLogsSnap.docs
+          .map((d: any) => ({ id: d.id, ...d.data() }))
+          .filter((d: any) => d.daily_env_log_id === envLog.id);
+
+        // We need to join with stays and cats to get box_number and cat_name
+        const staysSnap = await getCachedDocs('stays');
+        const catsSnap = await getCachedDocs('cats');
+        
+        const stays = staysSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const cats = catsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+
+        const joinedAnimalLogs = animalLogs.map((al: any) => {
+          const stay = stays.find((s: any) => s.id === al.stay_id);
+          const cat = stay ? cats.find((c: any) => c.id === stay.cat_id) : null;
+          return {
+            ...al,
+            box_number: stay ? stay.box_number : '',
+            cat_name: cat ? cat.name : 'Inconnu'
+          };
+        });
+
+        return jsonResponse({ envLog, animalLogs: joinedAnimalLogs });
+      }
+
+      if (method === 'POST') {
+        try {
+          const { date, time, temperature, humidity, animal_count, animalLogs } = body;
+          
+          // Add env log
+          const envDocRef = await addDoc(collection(db, 'daily_environment_logs'), {
+            date, time, temperature, humidity, animal_count
+          });
+          const envLogId = envDocRef.id;
+
+          // Add animal logs
+          for (const al of animalLogs) {
+            await addDoc(collection(db, 'daily_animal_logs'), {
+              daily_env_log_id: envLogId,
+              stay_id: al.stay_id,
+              litter_used: al.litter_used,
+              meal_eaten: al.meal_eaten,
+              behavior: al.behavior,
+              gets_along: al.gets_along,
+              is_present: al.is_present,
+              absence_reason: al.absence_reason || null
+            });
+          }
+          
+          return jsonResponse({ success: true });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.CREATE, 'daily_tracking');
         }
       }
     }

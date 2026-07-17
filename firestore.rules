@@ -119,6 +119,22 @@ service cloud.firestore {
         && data.invoice_number is string;
     }
 
+    // --- Collection: Daily Environment Logs ---
+    match /daily_environment_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // --- Collection: Daily Animal Logs ---
+    match /daily_animal_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
     // --- Collection: Media ---
     match /media/{mediaId} {
       allow read: if isAdmin();

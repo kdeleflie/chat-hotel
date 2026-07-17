@@ -352,6 +352,8 @@ export const getInvoiceStatusConfig = (
   );
 };
 
+import DailyTrackingView from "./DailyTrackingView";
+
 export default function App() {
   const [showMigration, setShowMigration] = useState(
     window.location.hash === "#migrate",
@@ -368,6 +370,7 @@ export default function App() {
     | "contracts"
     | "settings"
     | "all-invoices"
+    | "daily-tracking"
   >("stays");
   const [allInvoicesTabMonth, setAllInvoicesTabMonth] = useState<string | null>(
     null,
@@ -612,7 +615,7 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-sans tracking-tight">
       {/* Mobile Header */}
-      <div className="lg:hidden bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+      <div className="lg:hidden bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between sticky top-0 z-50 print:hidden">
         <div className="flex items-center gap-2">
           {settings.logo ? (
             <img
@@ -639,14 +642,14 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
       {/* Sidebar Overlay */}
       {isMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] lg:hidden"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] lg:hidden print:hidden"
           onClick={() => setIsMenuOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <div
-        className={`fixed left-0 top-0 h-full w-64 bg-white border-r border-stone-200 flex flex-col z-[70] transition-transform duration-300 lg:translate-x-0 ${isMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed left-0 top-0 h-full w-64 bg-white border-r border-stone-200 flex flex-col z-[70] transition-transform duration-300 lg:translate-x-0 print:hidden ${isMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="p-6 border-b border-stone-100 hidden lg:flex items-center gap-3">
           {settings.logo ? (
@@ -737,6 +740,15 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
             icon={<FileText size={20} className="text-emerald-500" />}
             label="Facturations"
           />
+          <NavItem
+            active={activeTab === "daily-tracking"}
+            onClick={() => {
+              setActiveTab("daily-tracking");
+              setIsMenuOpen(false);
+            }}
+            icon={<HeartPulse size={20} className="text-pink-500" />}
+            label="Suivi Journalier"
+          />
           <div className="pt-4 mt-4 border-t border-stone-100 flex flex-col gap-2">
             <NavItem
               active={activeTab === "settings"}
@@ -790,7 +802,7 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
         </div>
       </div>
 
-      <main className="lg:ml-64 p-4 lg:p-8 transition-all duration-300">
+      <main className="lg:ml-64 p-4 lg:p-8 transition-all duration-300 print:ml-0 print:p-0">
         {activeTab === "stays" && (
           <div className="space-y-6">
             <StaysView
@@ -872,6 +884,9 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
             onClearInitialMonth={() => setAllInvoicesTabMonth(null)}
           />
         )}
+        {activeTab === "daily-tracking" && (
+          <DailyTrackingView stays={stays} showToast={showToast} askConfirm={askConfirm} />
+        )}
         {activeTab === "settings" && (
           <SettingsView
             settings={settings}
@@ -901,13 +916,10 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
   );
 }
 
-function UpcomingStayCard({
+const UpcomingStayCard: React.FC<{ stay: Stay; onClick: () => void }> = ({
   stay,
   onClick,
-}: {
-  stay: Stay;
-  onClick: () => void;
-}) {
+}) => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
 
   useEffect(() => {

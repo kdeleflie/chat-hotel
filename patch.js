@@ -1,13 +1,11 @@
 const fs = require('fs');
-
-const file = 'src/firebaseInterceptor.ts';
-let code = fs.readFileSync(file, 'utf8');
-
-const regexDocs = /await getDocs\(collection\(db,\s*'([^']+)'\)\)/g;
-code = code.replace(regexDocs, "await getCachedDocs('$1')");
-
-const regexQuery = /await getDocs\(query\(collection\(db,\s*'([^']+)'\),\s*where\('([^']+)',\s*'==',\s*([^)]+)\)\)\)/g;
-code = code.replace(regexQuery, "new FilteredSnapshot((await getCachedDocs('$1')).docs.filter((d: any) => d.data()['$2'] === $3))");
-
-fs.writeFileSync(file, code);
-console.log("Patched!!");
+let code = fs.readFileSync('src/DailyTrackingView.tsx', 'utf8');
+code = code.replace(
+  'if (!res.ok) throw new Error("Erreur serveur");',
+  'if (!res.ok) { const errData = await res.json(); throw new Error(errData.error || "Erreur serveur"); }'
+);
+code = code.replace(
+  'showToast("Erreur lors de la sauvegarde", "error");',
+  'showToast(`Erreur lors de la sauvegarde: ${err.message}`, "error");'
+);
+fs.writeFileSync('src/DailyTrackingView.tsx', code);

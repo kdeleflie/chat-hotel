@@ -462,6 +462,155 @@ app.delete("/api/invoices/:id", (req, res) => {
   }
 });
 
+// Daily Tracking
+
+app.get("/api/daily-tracking/history", (req, res) => {
+  const envLogs = db.prepare("SELECT * FROM daily_environment_logs ORDER BY date DESC, time DESC").all();
+  res.json(envLogs);
+});
+
+app.get("/api/daily-tracking/animal-logs", (req, res) => {
+  try {
+    const logs = db.prepare(`
+      SELECT 
+        dal.*, 
+        del.date, 
+        del.time, 
+        del.temperature, 
+        del.humidity, 
+        c.name as cat_name, 
+        s.box_number
+      FROM daily_animal_logs dal
+      JOIN daily_environment_logs del ON dal.daily_env_log_id = del.id
+      JOIN stays s ON dal.stay_id = s.id
+      JOIN cats c ON s.cat_id = c.id
+      ORDER BY del.date DESC, del.time DESC
+    `).all();
+    
+    const sanitized = logs.map((al: any) => ({
+      ...al,
+      litter_used: al.litter_used === 1,
+      gets_along: al.gets_along === 1,
+      is_present: al.is_present === 1 || al.is_present === null || al.is_present === undefined
+    }));
+    
+    res.json(sanitized);
+  } catch (err: any) {
+    console.error("Error fetching animal logs:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/daily-tracking", (req, res) => {
+  const date = req.query.date; // format YYYY-MM-DD
+  const id = req.query.id;
+  let envLog;
+  if (id) {
+    envLog = db.prepare("SELECT * FROM daily_environment_logs WHERE id = ?").get(id);
+  } else if (date) {
+    envLog = db.prepare("SELECT * FROM daily_environment_logs WHERE date = ? ORDER BY id DESC LIMIT 1").get(date);
+  } else {
+    envLog = db.prepare("SELECT * FROM daily_environment_logs ORDER BY date DESC, id DESC LIMIT 1").get();
+  }
+
+  if (!envLog) {
+    return res.json({ envLog: null, animalLogs: [] });
+  }
+
+  const animalLogs = db.prepare(`
+    SELECT dal.*, s.box_number, c.name as cat_name 
+    FROM daily_animal_logs dal
+    JOIN stays s ON dal.stay_id = s.id
+    JOIN cats c ON s.cat_id = c.id
+    WHERE dal.daily_env_log_id = ?
+  `).all(envLog.id);
+
+  // Convert BOOLEAN 1/0 to true/false
+  const sanitizedAnimalLogs = animalLogs.map((al: any) => ({
+    ...al,
+    litter_used: al.litter_used === 1,
+    gets_along: al.gets_along === 1,
+    is_present: al.is_present === 1 || al.is_present === null || al.is_present === undefined
+  }));
+
+  res.json({ envLog, animalLogs: sanitizedAnimalLogs });
+});
+
+
+app.delete("/api/daily-tracking/:id", (req, res) => {
+  const { id } = req.params;
+  db.prepare("DELETE FROM daily_environment_logs WHERE id = ?").run(id);
+  res.json({ success: true });
+});
+
+
+app.put("/api/daily-tracking/:id", (req, res) => {
+  const { id } = req.params;
+  const { date, time, temperature, humidity, animal_count, animalLogs } = req.body;
+  
+  db.prepare("UPDATE daily_environment_logs SET date = ?, time = ?, temperature = ?, humidity = ?, animal_count = ? WHERE id = ?").run(
+    date, time, temperature, humidity, animal_count, id
+  );
+  
+  db.prepare("DELETE FROM daily_animal_logs WHERE daily_env_log_id = ?").run(id);
+  
+  const insertAnimal = db.prepare("INSERT INTO daily_animal_logs (daily_env_log_id, stay_id, litter_used, meal_eaten, behavior, gets_along, is_present, absence_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  
+  for (const al of animalLogs) {
+    insertAnimal.run(
+      id,
+      al.stay_id,
+      al.litter_used ? 1 : 0,
+      al.meal_eaten,
+      al.behavior ?? null,
+      al.gets_along ? 1 : 0,
+      al.is_present === false ? 0 : 1,
+      al.absence_reason ?? null
+    );
+  }
+  res.json({ success: true });
+});
+
+app.delete("/api/daily-tracking/:id", (req, res) => {
+  const { id } = req.params;
+  db.prepare("DELETE FROM daily_environment_logs WHERE id = ?").run(id);
+  res.json({ success: true });
+});
+
+app.post("/api/daily-tracking", (req, res) => {
+  const { date, time, temperature, humidity, animal_count, animalLogs } = req.body;
+  try {
+    let envLogId: number | bigint = 0;
+    const insertTx = db.transaction(() => {
+      const result = db.prepare("INSERT INTO daily_environment_logs (date, time, temperature, humidity, animal_count) VALUES (?, ?, ?, ?, ?)").run(
+        date, time, temperature, humidity, animal_count
+      );
+      envLogId = result.lastInsertRowid;
+
+      const insertAnimal = db.prepare("INSERT INTO daily_animal_logs (daily_env_log_id, stay_id, litter_used, meal_eaten, behavior, gets_along, is_present, absence_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+      
+      for (const al of animalLogs) {
+        insertAnimal.run(
+          envLogId,
+          al.stay_id,
+          al.litter_used ? 1 : 0,
+          al.meal_eaten,
+          al.behavior ?? null,
+          al.gets_along ? 1 : 0,
+          al.is_present === false ? 0 : 1,
+          al.absence_reason ?? null
+        );
+      }
+    });
+
+    insertTx();
+    res.json({ success: true, id: envLogId });
+  } catch (err: any) {
+    console.error("Error creating daily tracking:", err, "Payload:", req.body);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Statistics
 app.get("/api/stats", (req, res) => {
   const totalBoxesSetting = db.prepare("SELECT value FROM settings WHERE key = 'total_boxes'").get();
@@ -668,16 +817,41 @@ async function startServer() {
       FOREIGN KEY (stay_id) REFERENCES stays(id) ON DELETE CASCADE
     );
 
-    CREATE TABLE IF NOT EXISTS invoices (
+    CREATE TABLE IF NOT EXISTS daily_environment_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT,
+      time TEXT,
+      temperature REAL,
+      humidity REAL,
+      animal_count INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS daily_animal_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      daily_env_log_id INTEGER,
       stay_id INTEGER,
-      amount REAL,
-      service_type TEXT,
-      created_at TEXT,
-      invoice_number TEXT,
+      litter_used BOOLEAN,
+      meal_eaten TEXT,
+      behavior TEXT,
+      gets_along BOOLEAN,
+      is_present BOOLEAN DEFAULT 1,
+      absence_reason TEXT,
+      FOREIGN KEY (daily_env_log_id) REFERENCES daily_environment_logs(id) ON DELETE CASCADE,
       FOREIGN KEY (stay_id) REFERENCES stays(id) ON DELETE CASCADE
     );
   `);
+
+  try {
+    db.prepare("ALTER TABLE daily_animal_logs ADD COLUMN is_present BOOLEAN DEFAULT 1").run();
+  } catch (e) {
+    // Column might already exist
+  }
+
+  try {
+    db.prepare("ALTER TABLE daily_animal_logs ADD COLUMN absence_reason TEXT").run();
+  } catch (e) {
+    // Column might already exist
+  }
 
   // Migration for existing tables
   try { db.exec("ALTER TABLE cats ADD COLUMN species TEXT DEFAULT 'Chat'"); } catch(e) {}
