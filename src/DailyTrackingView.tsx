@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
-import { Save, AlertCircle, CheckCircle, HeartPulse, Edit2, Info, Thermometer, Droplets, Clock, Trash2 } from 'lucide-react';
+import { Save, AlertCircle, CheckCircle, HeartPulse, Edit2, Info, Thermometer, Droplets, Clock, Trash2, FileText } from 'lucide-react';
 import { Stay } from './App';
 import { handleFirebaseApi as fetch } from "./firebaseInterceptor";
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const formatDateSafely = (dateStr: string) => {
   if (!dateStr) return "-";
@@ -83,6 +85,61 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
     }
   };
 
+  const generatePDFReport = () => {
+    try {
+      const doc = new jsPDF('l', 'mm', 'a4');
+      doc.setFontSize(18);
+      doc.setTextColor(24, 24, 27); // Zinc 800
+      doc.text("Rapport de Suivi Journalier", 148, 20, { align: "center" });
+      
+      doc.setFontSize(10);
+      doc.setTextColor(113, 113, 122); // Zinc 500
+      doc.text(`Édité le : ${new Date().toLocaleDateString('fr-FR')}`, 14, 30);
+      if (searchCatName) {
+        doc.text(`Animal filtré : ${searchCatName}`, 14, 35);
+      }
+      
+      const columnsToInclude = availableColumns.filter(c => selectedColumns.includes(c.id));
+      const headers = columnsToInclude.map(c => c.label);
+      
+      const body = filteredLogs.map(log => {
+        return columnsToInclude.map(col => {
+          if (col.id === 'date') return formatDateSafely(log.date);
+          if (col.id === 'cat_name') return log.cat_name || '';
+          if (col.id === 'box_number') return log.box_number !== undefined ? `Box ${log.box_number}` : '';
+          if (col.id === 'is_present') return log.is_present ? 'Oui' : 'Non';
+          if (col.id === 'absence_reason') return log.absence_reason || '';
+          if (col.id === 'litter_used') return log.litter_used ? 'Oui' : 'Non';
+          if (col.id === 'meal_eaten') {
+            if (log.meal_eaten === 'complete') return 'Entier';
+            if (log.meal_eaten === 'partial') return 'Partiel';
+            return 'Pas du tout';
+          }
+          if (col.id === 'gets_along') return log.gets_along ? 'Oui' : 'Non';
+          if (col.id === 'behavior') return log.behavior || '';
+          if (col.id === 'temperature') return log.temperature !== undefined && log.temperature !== null ? `${log.temperature} °C` : '';
+          if (col.id === 'humidity') return log.humidity !== undefined && log.humidity !== null ? `${log.humidity} %` : '';
+          return '';
+        });
+      });
+      
+      autoTable(doc, {
+        startY: 40,
+        head: [headers],
+        body: body,
+        theme: "grid",
+        styles: { fontSize: 8, fontStyle: 'normal' },
+        headStyles: { fillColor: [219, 39, 119] } // Deep pink-600
+      });
+      
+      const filename = `rapport_suivi_${searchCatName.trim() ? searchCatName.replace(/\s+/g, '_') : 'global'}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      doc.save(filename);
+      showToast("Rapport PDF généré et téléchargé avec succès", "success");
+    } catch (e) {
+      console.error("PDF Generation error:", e);
+      showToast("Erreur lors de la génération du PDF", "error");
+    }
+  };
   const filteredLogs = useMemo(() => {
     if (!searchCatName.trim()) return allAnimalLogs;
     const term = searchCatName.toLowerCase();
@@ -121,6 +178,12 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
       const res = await fetch(url);
       const data = await res.json();
       
+      const currentActiveStays = stays.filter(stay => {
+        const arrDate = stay.arrival_date;
+        const depDate = stay.actual_departure || stay.planned_departure;
+        return arrDate <= date && (!depDate || depDate >= date);
+      });
+
       if (data.envLog) {
         setHasSavedData(true);
         setSelectedLogId(data.envLog.id.toString());
@@ -138,7 +201,7 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
         }));
         
         // Add active stays that might not have a log for this day yet
-        const newActiveStays = activeStays.filter((s: any) => !savedLogs.find((l: any) => l.stay_id.toString() === s.id.toString()));
+        const newActiveStays = currentActiveStays.filter((s: any) => !savedLogs.find((l: any) => l.stay_id.toString() === s.id.toString()));
         const newLogs = newActiveStays.map((s: any) => ({
           stay_id: s.id,
           cat_name: s.cat_name,
@@ -150,7 +213,11 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
           is_present: true
         }));
         
-        setAnimalLogs([...savedLogs, ...newLogs]);
+        const merged = [...savedLogs, ...newLogs];
+        const uniqueMerged = merged.filter((item, index, self) =>
+          self.findIndex(t => String(t.stay_id) === String(item.stay_id)) === index
+        );
+        setAnimalLogs(uniqueMerged);
       } else {
         setHasSavedData(false);
         setSelectedLogId(null);
@@ -159,7 +226,7 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
           temperature: '',
           humidity: '',
         });
-        setAnimalLogs(activeStays.map((s: any) => ({
+        const initialActiveLogs = currentActiveStays.map((s: any) => ({
           stay_id: s.id,
           cat_name: s.cat_name,
           box_number: s.box_number,
@@ -168,7 +235,11 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
           behavior: 'Calme',
           gets_along: true,
           is_present: true
-        })));
+        }));
+        const uniqueInitialActiveLogs = initialActiveLogs.filter((item, index, self) =>
+          self.findIndex(t => String(t.stay_id) === String(item.stay_id)) === index
+        );
+        setAnimalLogs(uniqueInitialActiveLogs);
       }
     } catch (err) {
       showToast("Erreur lors du chargement des données", "error");
@@ -209,7 +280,7 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
 
   useEffect(() => {
     if (!selectedLogId) {
-      setAnimalLogs(activeStays.map((s: any) => ({
+      const logs = activeStays.map((s: any) => ({
         stay_id: s.id,
         cat_name: s.cat_name,
         box_number: s.box_number,
@@ -219,7 +290,11 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
         gets_along: true,
         is_present: true,
         absence_reason: ''
-      })));
+      }));
+      const uniqueLogs = logs.filter((item, index, self) =>
+        self.findIndex(t => String(t.stay_id) === String(item.stay_id)) === index
+      );
+      setAnimalLogs(uniqueLogs);
     }
   }, [activeStays, selectedLogId]);
 
@@ -310,7 +385,10 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
       is_present: true,
       absence_reason: ''
     }));
-    setAnimalLogs(initialLogs);
+    const uniqueInitialLogs = initialLogs.filter((item, index, self) =>
+      self.findIndex(t => String(t.stay_id) === String(item.stay_id)) === index
+    );
+    setAnimalLogs(uniqueInitialLogs);
   };
 
   const handleSave = async () => {
@@ -771,15 +849,24 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
                 Résultats du rapport ({filteredLogs.length} relevé(s))
               </h3>
               {filteredLogs.length > 0 && (
-                <button
-                  onClick={() => {
-                    window.focus();
-                    window.print();
-                  }}
-                  className="text-xs font-bold text-stone-600 hover:text-stone-800 border border-stone-200 bg-white px-3 py-1.5 rounded-xl shadow-sm hover:bg-stone-50 transition-colors flex items-center gap-1"
-                >
-                  Imprimer le rapport
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={generatePDFReport}
+                    className="text-xs font-bold text-white bg-pink-600 hover:bg-pink-700 px-3 py-1.5 rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+                  >
+                    <FileText size={14} />
+                    <span>Télécharger PDF</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      window.focus();
+                      window.print();
+                    }}
+                    className="text-xs font-bold text-stone-600 hover:text-stone-800 border border-stone-200 bg-white px-3 py-1.5 rounded-xl shadow-sm hover:bg-stone-50 transition-colors flex items-center gap-1"
+                  >
+                    Imprimer
+                  </button>
+                </div>
               )}
             </div>
 

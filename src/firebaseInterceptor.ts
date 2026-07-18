@@ -218,41 +218,6 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
         }
       }
 
-      if (method === 'PUT') {
-        try {
-          const { date, time, temperature, humidity, animal_count, animalLogs } = body;
-          
-          // Update env log
-          await updateDoc(doc(db, 'daily_environment_logs', id), {
-            date, time, temperature, humidity, animal_count
-          });
-          
-          // Update animal logs - simplest way is to delete old ones and recreate
-          const animalLogsSnap = await getCachedDocs('daily_animal_logs');
-          const oldLogs = animalLogsSnap.docs.filter((d: any) => d.data().daily_env_log_id === id);
-          for (const l of oldLogs) {
-             await deleteDoc(doc(db, 'daily_animal_logs', l.id));
-          }
-          
-          for (const al of animalLogs) {
-            await addDoc(collection(db, 'daily_animal_logs'), {
-              daily_env_log_id: id,
-              stay_id: al.stay_id,
-              litter_used: al.litter_used,
-              meal_eaten: al.meal_eaten,
-              behavior: al.behavior,
-              gets_along: al.gets_along,
-              is_present: al.is_present,
-              absence_reason: al.absence_reason || null
-            });
-          }
-                    
-          return jsonResponse({ success: true });
-        } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, 'daily_tracking');
-        }
-      }
-
       if (method === 'DELETE') {
         try {
           // Recursive delete: Cats -> Stays -> Related

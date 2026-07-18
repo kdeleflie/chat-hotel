@@ -441,11 +441,27 @@ export default function App() {
       const settingsData = await settingsRes.json();
       const statsData = await statsRes.json();
 
-      if (Array.isArray(clientsData)) setClients(clientsData);
-      if (Array.isArray(catsData)) setCats(catsData);
+      if (Array.isArray(clientsData)) {
+        const uniqueClients = clientsData.filter(
+          (item: any, index: number, self: any[]) =>
+            self.findIndex((t) => String(t.id) === String(item.id)) === index
+        );
+        setClients(uniqueClients);
+      }
+      if (Array.isArray(catsData)) {
+        const uniqueCats = catsData.filter(
+          (item: any, index: number, self: any[]) =>
+            self.findIndex((t) => String(t.id) === String(item.id)) === index
+        );
+        setCats(uniqueCats);
+      }
       if (Array.isArray(staysData)) {
+        const uniqueStays = staysData.filter(
+          (item: any, index: number, self: any[]) =>
+            self.findIndex((t) => String(t.id) === String(item.id)) === index
+        );
         setStays(
-          staysData.map((s: any) => {
+          uniqueStays.map((s: any) => {
             let parsedUrls: string[] = [];
             if (s.contract_urls) {
               let parsed = s.contract_urls;
