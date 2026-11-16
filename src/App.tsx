@@ -24,6 +24,7 @@ export interface Cat {
   parasite_treatment_date?: string;
   birth_date?: string;
   age?: string;
+  comments?: string;
 }
 
 export interface Stay {
@@ -3630,6 +3631,7 @@ function ClientDashboard({
     parasite_treatment_date: "",
     birth_date: "",
     age: "",
+    comments: "",
   });
 
   const [stayFormData, setStayFormData] = useState({
@@ -3673,6 +3675,7 @@ function ClientDashboard({
       parasite_treatment_date: cat.parasite_treatment_date || "",
       birth_date: cat.birth_date || "",
       age: cat.age || "",
+      comments: cat.comments || "",
     });
     setEditingCat(cat);
     setActiveMenu("add_cat");
@@ -3723,6 +3726,7 @@ function ClientDashboard({
         parasite_treatment_date: "",
         birth_date: "",
         age: "",
+        comments: "",
       });
       setEditingCat(null);
       setActiveMenu("overview");
@@ -3944,6 +3948,20 @@ function ClientDashboard({
                 }}
               />
             </div>
+            <div className="sm:col-span-2 space-y-1">
+              <label className="text-xs font-semibold text-stone-500 uppercase">
+                Commentaires
+              </label>
+              <textarea
+                rows={3}
+                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
+                placeholder="Commentaires, habitudes, allergies, caractère..."
+                value={catFormData.comments || ""}
+                onChange={(e) =>
+                  setCatFormData({ ...catFormData, comments: e.target.value })
+                }
+              />
+            </div>
             <div className="col-span-2 flex justify-end gap-2 pt-4">
               <button
                 type="button"
@@ -4151,6 +4169,16 @@ function ClientDashboard({
                         {cat.age ||
                           (cat.birth_date ? calculateAge(cat.birth_date) : "-")}
                       </div>
+                      {cat.comments && (
+                        <div className="col-span-2 pt-2 border-t border-stone-100">
+                          <span className="font-bold block uppercase text-[10px] mb-1">
+                            Commentaires
+                          </span>
+                          <p className="text-xs text-stone-600 bg-stone-50 p-2 rounded-lg border border-stone-100 whitespace-pre-wrap break-words">
+                            {cat.comments}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     {catStays.length > 0 && (
                       <div className="mb-4 space-y-2">
@@ -4226,6 +4254,7 @@ function CatsView({
     parasite_treatment_date: "",
     birth_date: "",
     age: "",
+    comments: "",
   });
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
@@ -4255,7 +4284,8 @@ function CatsView({
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.owner_name?.toLowerCase().includes(search.toLowerCase()) ||
-      c.chip_number.includes(search),
+      (c.chip_number || "").includes(search) ||
+      (c.comments || "").toLowerCase().includes(search.toLowerCase()),
   );
 
   const onFormSubmit = (e: React.FormEvent) => {
@@ -4331,6 +4361,7 @@ function CatsView({
                 parasite_treatment_date: "",
                 birth_date: "",
                 age: "",
+                comments: "",
               });
             }}
             className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors text-sm font-bold"
@@ -4515,6 +4546,20 @@ function CatsView({
                 }
               />
             </div>
+            <div className="sm:col-span-2 space-y-1">
+              <label className="text-xs font-semibold text-stone-500 uppercase">
+                Commentaires
+              </label>
+              <textarea
+                rows={3}
+                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
+                placeholder="Commentaires, habitudes, allergies, caractère..."
+                value={formData.comments || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, comments: e.target.value })
+                }
+              />
+            </div>
             <div className="col-span-2 flex justify-end gap-2 pt-4">
               <button
                 type="button"
@@ -4577,6 +4622,7 @@ function CatsView({
                         cat.parasite_treatment_date || "",
                       birth_date: cat.birth_date || "",
                       age: cat.age || "",
+                      comments: cat.comments || "",
                     });
                   }}
                   className="p-2 text-stone-400 hover:text-emerald-600"
@@ -4638,6 +4684,21 @@ function CatsView({
                     {formatDateSafe(cat.parasite_treatment_date)}
                   </div>
                 </div>
+              </div>
+
+              <div className="col-span-2 pt-2 border-t border-stone-100">
+                <span className="text-stone-400 block text-[10px] uppercase font-bold mb-1">
+                  Commentaires
+                </span>
+                {cat.comments ? (
+                  <p className="text-xs text-stone-700 bg-stone-50 p-2.5 rounded-lg border border-stone-100 whitespace-pre-wrap break-words">
+                    {cat.comments}
+                  </p>
+                ) : (
+                  <span className="text-xs text-stone-400 italic">
+                    Aucun commentaire
+                  </span>
+                )}
               </div>
             </div>
           </div>

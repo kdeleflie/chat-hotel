@@ -129,9 +129,9 @@ app.get("/api/cats", (req, res) => {
 
 app.post("/api/cats", (req, res) => {
   console.log("Creating cat:", req.body);
-  const { owner_id, name, species, breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date } = req.body;
+  const { owner_id, name, species, breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date, comments } = req.body;
   try {
-    const result = db.prepare("INSERT INTO cats (owner_id, name, species, breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(owner_id, name, species || 'Chat', breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date);
+    const result = db.prepare("INSERT INTO cats (owner_id, name, species, breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(owner_id, name, species || 'Chat', breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date, comments || '');
     res.json({ id: result.lastInsertRowid });
   } catch (err: any) {
     console.error("Error creating cat:", err.message);
@@ -140,8 +140,8 @@ app.post("/api/cats", (req, res) => {
 });
 
 app.put("/api/cats/:id", (req, res) => {
-  const { name, species, breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date } = req.body;
-  db.prepare("UPDATE cats SET name = ?, species = ?, breed = ?, color = ?, chip_number = ?, vaccine_tc_date = ?, vaccine_l_date = ?, parasite_treatment_date = ? WHERE id = ?").run(name, species, breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date, req.params.id);
+  const { name, species, breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date, comments } = req.body;
+  db.prepare("UPDATE cats SET name = ?, species = ?, breed = ?, color = ?, chip_number = ?, vaccine_tc_date = ?, vaccine_l_date = ?, parasite_treatment_date = ?, comments = ? WHERE id = ?").run(name, species, breed, color, chip_number, vaccine_tc_date, vaccine_l_date, parasite_treatment_date, comments || '', req.params.id);
   res.json({ success: true });
 });
 
@@ -778,6 +778,7 @@ async function startServer() {
       vaccine_tc_date TEXT,
       vaccine_l_date TEXT,
       parasite_treatment_date TEXT,
+      comments TEXT,
       FOREIGN KEY (owner_id) REFERENCES clients(id) ON DELETE CASCADE
     );
 
@@ -862,6 +863,7 @@ async function startServer() {
   try { db.exec("ALTER TABLE cats ADD COLUMN vaccine_tc_date TEXT"); } catch(e) {}
   try { db.exec("ALTER TABLE cats ADD COLUMN vaccine_l_date TEXT"); } catch(e) {}
   try { db.exec("ALTER TABLE cats ADD COLUMN parasite_treatment_date TEXT"); } catch(e) {}
+  try { db.exec("ALTER TABLE cats ADD COLUMN comments TEXT"); } catch(e) {}
   try { 
     db.exec("ALTER TABLE invoices ADD COLUMN invoice_number TEXT"); 
     // Backfill existing invoices

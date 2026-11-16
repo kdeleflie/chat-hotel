@@ -27,7 +27,8 @@
         "vaccine_l_date": { "type": "string" },
         "parasite_treatment_date": { "type": "string" },
         "birth_date": { "type": "string" },
-        "age": { "type": "string" }
+        "age": { "type": "string" },
+        "comments": { "type": "string" }
       },
       "required": ["owner_id", "name"]
     },
