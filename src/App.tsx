@@ -142,6 +142,7 @@ export interface Settings {
   invoice_statuses?: Record<string, InvoiceStatusConfig>;
   health_conditions?: string;
   default_down_payment_percentage?: string;
+  stays_banner_url?: string;
 }
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
@@ -185,13 +186,8 @@ import { fr } from "date-fns/locale";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { handleFirebaseApi as fetch } from "./firebaseInterceptor";
-
-const DEFAULT_BRAND_LOGO =
-  "/src/assets/images/chathotel_brand_logo_1794854269095.jpg";
-const LOGIN_HERO_IMAGE =
-  "/src/assets/images/login_cat_lounge_1794854269604.jpg";
-const SUITE_BANNER_IMAGE =
-  "/src/assets/images/chathotel_suite_banner_1794854270166.jpg";
+import DEFAULT_BRAND_LOGO from "./assets/images/chathotel_brand_logo_1794854269095.jpg";
+import LOGIN_HERO_IMAGE from "./assets/images/login_cat_lounge_1794854269604.jpg";
 
 function BrandLogo({
   logoUrl,
@@ -494,6 +490,7 @@ export default function App() {
   const [allInvoicesTabMonth, setAllInvoicesTabMonth] = useState<string | null>(
     null,
   );
+  const [focusSettingId, setFocusSettingId] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [cats, setCats] = useState<Cat[]>([]);
@@ -1037,6 +1034,10 @@ export default function App() {
               settings={settings}
               showToast={showToast}
               askConfirm={askConfirm}
+              onConfigureBanner={() => {
+                setFocusSettingId("stays-banner-url-input");
+                setActiveTab("settings");
+              }}
             />
           </div>
         )}
@@ -1118,6 +1119,8 @@ export default function App() {
             onUpdate={fetchData}
             showToast={showToast}
             askConfirm={askConfirm}
+            focusFieldId={focusSettingId}
+            onClearFocusField={() => setFocusSettingId(null)}
           />
         )}
       </main>
@@ -1250,6 +1253,7 @@ function StaysView({
   settings,
   showToast,
   askConfirm,
+  onConfigureBanner,
 }: {
   stays: Stay[];
   cats: Cat[];
@@ -1257,9 +1261,15 @@ function StaysView({
   settings: Settings;
   showToast: (m: string, t?: "success" | "error") => void;
   askConfirm: (t: string, m: string, c: () => void, d?: boolean) => void;
+  onConfigureBanner?: () => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [selectedStay, setSelectedStay] = useState<Stay | null>(null);
+  const [bannerImgError, setBannerImgError] = useState(false);
+
+  useEffect(() => {
+    setBannerImgError(false);
+  }, [settings.stays_banner_url]);
 
   useEffect(() => {
     if (selectedStay) {
@@ -1489,14 +1499,51 @@ function StaysView({
           </div>
         </div>
 
-        <div className="lg:col-span-5 relative min-h-[140px] lg:max-h-[175px] bg-[#13382C]">
-          <img
-            src={SUITE_BANNER_IMAGE}
-            alt="Suites et espaces de repos de la pension Chat'Hotel"
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#13382C]/65 via-transparent to-transparent lg:bg-gradient-to-r lg:from-white/15 lg:to-transparent" />
+        <div className="lg:col-span-5 relative min-h-[140px] lg:max-h-[175px] bg-[#FAF6EE]">
+          {(settings.stays_banner_url || "").trim() && !bannerImgError ? (
+            <div className="relative w-full h-full min-h-[140px] group bg-[#13382C]">
+              <img
+                src={(settings.stays_banner_url || "").trim()}
+                alt="Suites et espaces de repos de la pension Chat'Hotel"
+                referrerPolicy="no-referrer"
+                onError={() => setBannerImgError(true)}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#13382C]/65 via-transparent to-transparent lg:bg-gradient-to-r lg:from-white/15 lg:to-transparent pointer-events-none" />
+              {onConfigureBanner && (
+                <button
+                  type="button"
+                  onClick={onConfigureBanner}
+                  className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-lg bg-black/55 hover:bg-black/75 text-white text-[11px] font-medium flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity backdrop-blur-xs cursor-pointer"
+                  title="Modifier le lien de l'image"
+                >
+                  <ImageIcon size={12} />
+                  <span>Modifier</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onConfigureBanner}
+              className="w-full h-full min-h-[140px] p-3.5 bg-[#FAF6EE] hover:bg-[#F3ECE0] border-t lg:border-t-0 lg:border-l border-[#E5DED2] flex items-center justify-center transition-colors group cursor-pointer"
+              title="Configurer le lien de l'image dans Configuration"
+            >
+              <div className="w-full h-full min-h-[110px] rounded-xl border-2 border-dashed border-[#D5C9B6] group-hover:border-[#13382C]/50 flex flex-col items-center justify-center gap-1.5 px-4 py-3 text-center transition-colors">
+                <div className="w-8 h-8 rounded-full bg-white border border-[#E5DED2] shadow-xs flex items-center justify-center text-[#13382C] group-hover:scale-105 transition-transform">
+                  <ImageIcon size={16} />
+                </div>
+                <span className="text-xs font-semibold text-[#18221D]">
+                  {bannerImgError
+                    ? "Image inaccessible · Cliquer pour modifier"
+                    : "Cliquer pour ajouter une image"}
+                </span>
+                <span className="text-[11px] text-stone-500">
+                  Configurer via un lien dans Configuration
+                </span>
+              </div>
+            </button>
+          )}
         </div>
       </section>
 
@@ -5107,15 +5154,23 @@ function SettingsView({
   onUpdate,
   showToast,
   askConfirm,
+  focusFieldId,
+  onClearFocusField,
 }: {
   settings: Settings;
   onUpdate: () => void;
   showToast: (m: string, t?: "success" | "error") => void;
   askConfirm: (t: string, m: string, c: () => void, d?: boolean) => void;
+  focusFieldId?: string | null;
+  onClearFocusField?: () => void;
 }) {
   const [restoring, setRestoring] = useState(false);
   const [restoreLogs, setRestoreLogs] = useState<string[]>([]);
   const [totalBoxes, setTotalBoxes] = useState(settings.total_boxes || "3");
+  const [staysBannerUrl, setStaysBannerUrl] = useState(
+    settings.stays_banner_url || "",
+  );
+  const [bannerPreviewError, setBannerPreviewError] = useState(false);
   const [defaultDownPayment, setDefaultDownPayment] = useState(
     settings.default_down_payment_percentage || "30",
   );
@@ -5153,6 +5208,8 @@ function SettingsView({
         "Nez qui coule\nYeux qui pleurent\nDémangeaisons",
     );
     setTotalBoxes(settings.total_boxes || "3");
+    setStaysBannerUrl(settings.stays_banner_url || "");
+    setBannerPreviewError(false);
     setDefaultDownPayment(settings.default_down_payment_percentage || "30");
     setTempStatuses(settings.invoice_statuses || DEFAULT_INVOICE_STATUS_LABELS);
     setCompanyInfo({
@@ -5165,6 +5222,23 @@ function SettingsView({
       company_acaced: settings.company_acaced || "",
     });
   }, [settings]);
+
+  useEffect(() => {
+    setBannerPreviewError(false);
+  }, [staysBannerUrl]);
+
+  useEffect(() => {
+    if (!focusFieldId) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(focusFieldId) as HTMLInputElement | null;
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.focus();
+      }
+      onClearFocusField?.();
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [focusFieldId, onClearFocusField]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
@@ -5472,6 +5546,73 @@ function SettingsView({
           la pension
         </h3>
         <div className="grid grid-cols-1 gap-3.5 text-sm">
+          <div className="space-y-1.5 pb-3 border-b border-[#EEE8DC]">
+            <label
+              htmlFor="stays-banner-url-input"
+              className="text-[11px] font-semibold text-stone-500 uppercase"
+            >
+              Image d'accueil — Vue Séjours (Lien URL)
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                id="stays-banner-url-input"
+                type="url"
+                className="flex-1 p-2 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none"
+                value={staysBannerUrl}
+                onChange={(e) => setStaysBannerUrl(e.target.value)}
+                placeholder="https://exemple.com/image-suites.jpg"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleSaveSetting(
+                      "stays_banner_url",
+                      staysBannerUrl.trim(),
+                    )
+                  }
+                  className="bg-[#13382C] hover:bg-[#0E2B22] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap"
+                >
+                  Enregistrer
+                </button>
+                {(staysBannerUrl.trim() || settings.stays_banner_url) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStaysBannerUrl("");
+                      handleSaveSetting("stays_banner_url", "");
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-600 bg-[#FAF8F4] hover:bg-rose-50 hover:text-rose-700 border border-[#E4DDD1] transition-colors whitespace-nowrap"
+                  >
+                    Retirer
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="text-[11px] text-stone-400">
+              Image affichée à côté de « Accueil & Suites Félines ». Laissez vide
+              pour afficher le bouton d'ajout par défaut.
+            </p>
+            {staysBannerUrl.trim() && (
+              <div className="mt-2 rounded-xl overflow-hidden border border-[#E5DED2] bg-[#FAF8F4] max-w-xs">
+                {!bannerPreviewError ? (
+                  <img
+                    src={staysBannerUrl.trim()}
+                    alt="Aperçu de l'image d'accueil"
+                    referrerPolicy="no-referrer"
+                    onError={() => setBannerPreviewError(true)}
+                    className="w-full h-24 object-cover"
+                  />
+                ) : (
+                  <div className="p-3 text-[11px] text-rose-600 flex items-center gap-1.5">
+                    <AlertCircle size={13} />
+                    <span>Impossible de charger l'aperçu de ce lien.</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-stone-500 uppercase">
               Nombre total de box
