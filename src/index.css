@@ -1,1 +1,65 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html {
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: 0.9333rem;
+    line-height: 1.5;
+    background-color: #F6F3EC;
+    color: #1D2420;
+  }
+
+  h1, h2, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.012em;
+    line-height: 1.25;
+  }
+
+  input, select, textarea {
+    color: #1D2420;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Smooth custom scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D6CFC4;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B8AFA1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

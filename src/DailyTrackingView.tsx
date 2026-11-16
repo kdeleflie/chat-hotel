@@ -129,7 +129,7 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
         body: body,
         theme: "grid",
         styles: { fontSize: 8, fontStyle: 'normal' },
-        headStyles: { fillColor: [219, 39, 119] } // Deep pink-600
+        headStyles: { fillColor: [19, 56, 44] } // Deep forest emerald
       });
       
       const filename = `rapport_suivi_${searchCatName.trim() ? searchCatName.replace(/\s+/g, '_') : 'global'}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
@@ -436,46 +436,54 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-end print:hidden">
-        <div>
-          <h2 className="text-2xl font-black text-stone-800 tracking-tight flex items-center gap-2">
-            <HeartPulse className="text-pink-500" />
-            Suivi journalier
-          </h2>
-          <p className="text-stone-500">Enregistrez les constantes environnementales et l'état des animaux.</p>
+    <div className="space-y-4">
+      {/* Header Bar */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 bg-white p-4 rounded-2xl border border-[#E5DED2] shadow-sm print:hidden">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+            <HeartPulse size={18} />
+          </div>
+          <div>
+            <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+              Suivi journalier
+            </h2>
+            <p className="text-xs text-stone-500">
+              Constantes de la pension et état quotidien de chaque pensionnaire.
+            </p>
+          </div>
         </div>
-        
+
         {activeSubTab === 'input' && (
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => handleDateChange(e.target.value)}
-              className="p-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none shadow-sm"
+              className="px-3 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl text-sm font-medium text-stone-800 focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none tabular-nums"
             />
             {selectedLogId && (
               <button
                 onClick={handleDelete}
                 disabled={isLoading}
-                className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm border border-red-200"
+                className="bg-rose-50 text-rose-700 hover:bg-rose-100 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border border-rose-200 disabled:opacity-50"
               >
+                <Trash2 size={14} />
                 Supprimer
               </button>
             )}
             <button
               onClick={handleNewRecord}
               disabled={isLoading}
-              className="bg-white text-stone-700 hover:bg-stone-50 border border-stone-200 px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm"
+              className="bg-[#FAF8F4] text-stone-700 hover:bg-[#F1ECE1] border border-[#E4DDD1] px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
             >
               Nouveau relevé
             </button>
             <button
               onClick={handleSave}
               disabled={isLoading}
-              className="bg-stone-800 hover:bg-stone-900 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm"
+              className="bg-[#13382C] hover:bg-[#0E2B22] text-white px-4 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
             >
-              <Save size={18} />
+              <Save size={14} />
               {selectedLogId ? 'Mettre à jour' : 'Enregistrer'}
             </button>
           </div>
@@ -483,67 +491,84 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
       </div>
 
       {/* Sub tabs */}
-      <div className="flex border-b border-stone-200 gap-6 print:hidden">
+      <div className="flex border-b border-[#E5DED2] gap-5 print:hidden overflow-x-auto">
         <button
           onClick={() => setActiveSubTab('input')}
-          className={`pb-3 font-bold text-sm transition-all relative ${activeSubTab === 'input' ? 'text-pink-600 border-b-2 border-pink-500' : 'text-stone-500 hover:text-stone-800'}`}
+          className={`pb-2.5 font-semibold text-[13px] transition-colors whitespace-nowrap border-b-2 ${
+            activeSubTab === 'input'
+              ? 'text-[#13382C] border-emerald-700'
+              : 'text-stone-500 border-transparent hover:text-stone-800'
+          }`}
         >
           Saisie journalière & Historique global
         </button>
         <button
           onClick={() => setActiveSubTab('report')}
-          className={`pb-3 font-bold text-sm transition-all relative ${activeSubTab === 'report' ? 'text-pink-600 border-b-2 border-pink-500' : 'text-stone-500 hover:text-stone-800'}`}
+          className={`pb-2.5 font-semibold text-[13px] transition-colors whitespace-nowrap border-b-2 ${
+            activeSubTab === 'report'
+              ? 'text-[#13382C] border-emerald-700'
+              : 'text-stone-500 border-transparent hover:text-stone-800'
+          }`}
         >
           Recherche & Rapport individuel par animal
         </button>
       </div>
 
       {activeSubTab === 'input' && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Environmental Data Section */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
-            <h3 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
-              <Info className="text-blue-500" size={18} />
+          <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2]">
+            <h3 className="font-display text-base font-semibold text-stone-900 mb-3 flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center">
+                <Info size={15} />
+              </span>
               Informations générales (Environnement)
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-stone-500 uppercase">Heure du relevé</label>
+                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Clock size={12} className="text-stone-400" />
+                  Heure du relevé
+                </label>
                 <input
                   type="time"
                   value={envData.time}
                   onChange={(e) => setEnvData({ ...envData, time: e.target.value })}
-                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pink-500 transition-all"
+                  className="w-full p-2 text-sm bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl outline-none focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all tabular-nums text-stone-800 font-medium"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-stone-500 uppercase flex items-center gap-1">
-                  <Thermometer size={14} /> Température (°C)
+                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Thermometer size={12} className="text-amber-600" />
+                  Température (°C)
                 </label>
                 <input
                   type="number"
                   step="0.1"
                   value={envData.temperature}
                   onChange={(e) => setEnvData({ ...envData, temperature: e.target.value })}
-                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pink-500 transition-all"
+                  className="w-full p-2 text-sm bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl outline-none focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all tabular-nums text-stone-800 font-medium"
                   placeholder="Ex: 21.5"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-stone-500 uppercase flex items-center gap-1">
-                  <Droplets size={14} /> Humidité (%)
+                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Droplets size={12} className="text-sky-600" />
+                  Humidité (%)
                 </label>
                 <input
                   type="number"
                   value={envData.humidity}
                   onChange={(e) => setEnvData({ ...envData, humidity: e.target.value })}
-                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pink-500 transition-all"
+                  className="w-full p-2 text-sm bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl outline-none focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all tabular-nums text-stone-800 font-medium"
                   placeholder="Ex: 55"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-stone-500 uppercase">Nombre d'animaux</label>
-                <div className="w-full p-2.5 bg-stone-100 border border-stone-200 rounded-xl text-stone-700 font-bold">
+                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
+                  Nombre d'animaux
+                </label>
+                <div className="w-full p-2 text-sm bg-[#EFF4F0] border border-[#D4E2D8] rounded-xl text-[#13382C] font-semibold tabular-nums">
                   {animalLogs.filter(log => log.is_present).length} animal(aux) présent(s)
                 </div>
               </div>
@@ -551,94 +576,108 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
           </div>
 
           {/* Animal Tracking Section */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
-            <h3 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
-              <Edit2 className="text-orange-500" size={18} />
-              Suivi individuel des animaux
-            </h3>
-            
+          <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2]">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h3 className="font-display text-base font-semibold text-stone-900 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+                  <Edit2 size={14} />
+                </span>
+                Suivi individuel des animaux
+              </h3>
+              {hasSavedData && (
+                <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                  Relevé enregistré
+                </span>
+              )}
+            </div>
+
             {isLoading ? (
-              <div className="py-8 text-center text-stone-500">Chargement des données...</div>
+              <div className="py-8 text-center text-stone-500 text-sm">Chargement des données...</div>
             ) : animalLogs.length === 0 ? (
               <div className="py-8 text-center text-stone-500 flex flex-col items-center">
-                <AlertCircle className="text-stone-300 mb-2" size={32} />
-                <p>Aucun animal présent à cette date.</p>
+                <div className="w-10 h-10 rounded-xl bg-[#F4F0E8] text-stone-400 flex items-center justify-center mb-2">
+                  <AlertCircle size={20} />
+                </div>
+                <p className="font-medium text-sm text-stone-700">Aucun animal présent à cette date.</p>
+                <p className="text-xs text-stone-400 mt-0.5">Sélectionnez une autre date ou enregistrez un séjour.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-stone-50 text-stone-500 uppercase text-xs font-bold border-b border-stone-100">
+              <div className="overflow-x-auto rounded-xl border border-[#EDE6DA]">
+                <table className="w-full text-left text-[13px]">
+                  <thead className="bg-[#F4F0E8] text-stone-600 uppercase text-[11px] font-semibold border-b border-[#E5DED2]">
                     <tr>
-                      <th className="px-4 py-3 rounded-tl-xl w-32">Nom / Box</th>
-                      <th className="px-4 py-3 w-28">Présent(e)</th>
-                      <th className="px-4 py-3 w-32">Litière utilisée</th>
-                      <th className="px-4 py-3 w-48">Repas mangé</th>
-                      <th className="px-4 py-3 w-32">Entente congénère</th>
-                      <th className="px-4 py-3 rounded-tr-xl">Comportement / Notes</th>
+                      <th className="px-3 py-2.5 w-32">Nom / Box</th>
+                      <th className="px-3 py-2.5 w-24">Présent(e)</th>
+                      <th className="px-3 py-2.5 w-28">Litière utilisée</th>
+                      <th className="px-3 py-2.5 w-40">Repas mangé</th>
+                      <th className="px-3 py-2.5 w-32">Entente congénère</th>
+                      <th className="px-3 py-2.5">Comportement / Notes</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-stone-100">
+                  <tbody className="divide-y divide-[#F0E9DC]">
                     {animalLogs.map((log) => (
-                      <tr key={log.stay_id} className="hover:bg-stone-50/50 transition-colors">
-                        <td className={`px-4 py-3 align-top ${!log.is_present ? 'opacity-50 grayscale' : ''}`}>
-                          <div className="font-bold text-stone-800">{log.cat_name}</div>
-                          <div className="text-xs font-medium text-stone-500 bg-stone-100 inline-block px-1.5 py-0.5 rounded mt-1">Box {log.box_number}</div>
+                      <tr key={log.stay_id} className="hover:bg-[#FAF8F4] transition-colors">
+                        <td className={`px-3 py-2.5 align-top ${!log.is_present ? 'opacity-50 grayscale' : ''}`}>
+                          <div className="font-semibold text-stone-900">{log.cat_name}</div>
+                          <div className="text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 inline-block px-1.5 py-0.5 rounded mt-0.5 tabular-nums">
+                            Box {log.box_number}
+                          </div>
                         </td>
-                        <td className="px-4 py-3 align-top">
+                        <td className="px-3 py-2.5 align-top">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={log.is_present}
                               onChange={(e) => updateAnimalLog(log.stay_id, 'is_present', e.target.checked)}
-                              className="w-4 h-4 text-emerald-500 rounded border-stone-300 focus:ring-emerald-500"
+                              className="w-4 h-4 text-emerald-700 rounded border-stone-300 focus:ring-emerald-600"
                             />
-                            <span className="text-stone-700">{log.is_present ? 'Oui' : 'Non'}</span>
+                            <span className="text-stone-700 font-medium">{log.is_present ? 'Oui' : 'Non'}</span>
                           </label>
                         </td>
-                        <td className={`px-4 py-3 align-top ${!log.is_present ? 'opacity-50 grayscale' : ''}`}>
+                        <td className={`px-3 py-2.5 align-top ${!log.is_present ? 'opacity-50 grayscale' : ''}`}>
                           <label className={`flex items-center gap-2 ${log.is_present ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                             <input
                               type="checkbox"
                               disabled={!log.is_present}
                               checked={log.litter_used}
                               onChange={(e) => updateAnimalLog(log.stay_id, 'litter_used', e.target.checked)}
-                              className="w-4 h-4 text-pink-500 rounded border-stone-300 focus:ring-pink-500 disabled:opacity-50"
+                              className="w-4 h-4 text-emerald-700 rounded border-stone-300 focus:ring-emerald-600 disabled:opacity-50"
                             />
                             <span className="text-stone-700">{log.litter_used ? 'Oui' : 'Non'}</span>
                           </label>
                         </td>
-                        <td className={`px-4 py-3 align-top ${!log.is_present ? 'opacity-50 grayscale' : ''}`}>
+                        <td className={`px-3 py-2.5 align-top ${!log.is_present ? 'opacity-50 grayscale' : ''}`}>
                           <select
                             disabled={!log.is_present}
                             value={log.meal_eaten}
                             onChange={(e) => updateAnimalLog(log.stay_id, 'meal_eaten', e.target.value)}
-                            className="w-full p-1.5 bg-white border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-pink-500 disabled:bg-stone-50 disabled:cursor-not-allowed"
+                            className="w-full p-1.5 text-[13px] bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg outline-none focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 disabled:bg-stone-50 disabled:cursor-not-allowed"
                           >
                             <option value="complete">Entier</option>
                             <option value="partial">Partiel</option>
                             <option value="none">Pas du tout</option>
                           </select>
                         </td>
-                        <td className={`px-4 py-3 align-top ${!log.is_present ? 'opacity-50 grayscale' : ''}`}>
+                        <td className={`px-3 py-2.5 align-top ${!log.is_present ? 'opacity-50 grayscale' : ''}`}>
                           <label className={`flex items-center gap-2 ${log.is_present ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                             <input
                               type="checkbox"
                               disabled={!log.is_present}
                               checked={log.gets_along}
                               onChange={(e) => updateAnimalLog(log.stay_id, 'gets_along', e.target.checked)}
-                              className="w-4 h-4 text-pink-500 rounded border-stone-300 focus:ring-pink-500 disabled:opacity-50"
+                              className="w-4 h-4 text-emerald-700 rounded border-stone-300 focus:ring-emerald-600 disabled:opacity-50"
                             />
                             <span className="text-stone-700">{log.gets_along ? 'Oui' : 'Non'}</span>
                           </label>
                         </td>
-                        <td className="px-4 py-3 align-top">
+                        <td className="px-3 py-2.5 align-top">
                           {log.is_present ? (
                             <textarea
                               value={log.behavior}
                               disabled={!log.is_present}
                               onChange={(e) => updateAnimalLog(log.stay_id, 'behavior', e.target.value)}
-                              placeholder={log.is_present ? "Observation, comportement..." : "Animal absent"}
-                              className="w-full p-2 text-sm border border-stone-200 rounded-lg resize-y min-h-[40px] max-h-[120px] outline-none focus:ring-2 focus:ring-pink-500"
+                              placeholder="Observation, comportement..."
+                              className="w-full p-1.5 text-[13px] bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg resize-y min-h-[34px] max-h-[100px] outline-none focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20"
                             />
                           ) : (
                             <input
@@ -646,7 +685,7 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
                               value={log.absence_reason || ''}
                               onChange={(e) => updateAnimalLog(log.stay_id, 'absence_reason', e.target.value)}
                               placeholder="Raison de l'absence..."
-                              className="w-full p-2 text-sm border border-stone-300 bg-white text-stone-800 rounded-lg outline-none focus:ring-2 focus:ring-pink-500 placeholder-stone-400 font-medium"
+                              className="w-full p-1.5 text-[13px] border border-[#E4DDD1] bg-[#FAF8F4] text-stone-800 rounded-lg outline-none focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 placeholder-stone-400 font-medium"
                             />
                           )}
                         </td>
@@ -660,44 +699,58 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
 
           {/* History Section */}
           {history.length > 0 && (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 mt-6">
-              <h3 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
-                <Clock className="text-blue-500" size={18} />
+            <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2]">
+              <h3 className="font-display text-base font-semibold text-stone-900 mb-3 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <Clock size={14} />
+                </span>
                 Historique des saisies
               </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-stone-600">
-                  <thead className="bg-stone-50 text-stone-500 uppercase text-xs font-bold border-b border-stone-100">
+              <div className="overflow-x-auto rounded-xl border border-[#EDE6DA]">
+                <table className="w-full text-left text-[13px] text-stone-600">
+                  <thead className="bg-[#F4F0E8] text-stone-600 uppercase text-[11px] font-semibold border-b border-[#E5DED2]">
                     <tr>
-                      <th className="px-4 py-3 rounded-tl-xl">Date</th>
-                      <th className="px-4 py-3">Heure</th>
-                      <th className="px-4 py-3">Température</th>
-                      <th className="px-4 py-3">Humidité</th>
-                      <th className="px-4 py-3 text-center">Animaux</th>
-                      <th className="px-4 py-3 rounded-tr-xl text-right">Actions</th>
+                      <th className="px-3.5 py-2.5">Date</th>
+                      <th className="px-3.5 py-2.5">Heure</th>
+                      <th className="px-3.5 py-2.5">Température</th>
+                      <th className="px-3.5 py-2.5">Humidité</th>
+                      <th className="px-3.5 py-2.5 text-center">Animaux</th>
+                      <th className="px-3.5 py-2.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-stone-100">
+                  <tbody className="divide-y divide-[#F0E9DC]">
                     {history.map((log) => {
                       const idStr = log.id ? String(log.id) : '';
                       return (
-                        <tr 
-                          key={idStr} 
+                        <tr
+                          key={idStr}
                           onClick={() => handleHistoryClick(log.date, idStr)}
-                          className={`cursor-pointer transition-colors ${selectedLogId === idStr ? 'bg-blue-50' : 'hover:bg-stone-50/50'}`}
+                          className={`cursor-pointer transition-colors ${
+                            selectedLogId === idStr
+                              ? 'bg-[#EFF4F0]'
+                              : 'hover:bg-[#FAF8F4]'
+                          }`}
                         >
-                          <td className="px-4 py-3 font-medium text-stone-800">{formatDateSafely(log.date)}</td>
-                          <td className="px-4 py-3 text-stone-600">{log.time}</td>
-                          <td className="px-4 py-3 text-stone-600">{log.temperature ? `${log.temperature} °C` : '-'}</td>
-                          <td className="px-4 py-3 text-stone-600">{log.humidity ? `${log.humidity} %` : '-'}</td>
-                          <td className="px-4 py-3 text-center text-stone-600 font-bold">{log.animal_count}</td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-3.5 py-2.5 font-semibold text-stone-800 tabular-nums">
+                            {formatDateSafely(log.date)}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-stone-600 tabular-nums">{log.time}</td>
+                          <td className="px-3.5 py-2.5 text-stone-600 tabular-nums">
+                            {log.temperature ? `${log.temperature} °C` : '-'}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-stone-600 tabular-nums">
+                            {log.humidity ? `${log.humidity} %` : '-'}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-center text-[#13382C] font-bold tabular-nums">
+                            {log.animal_count}
+                          </td>
+                          <td className="px-3.5 py-2.5 text-right">
                             <button
                               onClick={(e) => handleDeleteId(idStr, log.date, e)}
-                              className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors inline-flex items-center gap-1 font-bold"
+                              className="p-1 px-2 text-rose-700 hover:text-rose-900 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
                               title="Supprimer"
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={13} />
                               <span>Supprimer</span>
                             </button>
                           </td>
@@ -713,13 +766,13 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
       )}
 
       {activeSubTab === 'report' && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Controls Panel */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 space-y-6 print:hidden">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2] space-y-4 print:hidden">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Animal Search */}
-              <div className="space-y-2">
-                <label className="text-xs font-black text-stone-500 uppercase tracking-wider block">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider block">
                   Rechercher un animal (Nom)
                 </label>
                 <div className="relative">
@@ -728,12 +781,12 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
                     value={searchCatName}
                     onChange={(e) => setSearchCatName(e.target.value)}
                     placeholder="Ex: Caramel, Nala..."
-                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pink-500 transition-all text-stone-800 font-medium"
+                    className="w-full p-2 text-sm bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl outline-none focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all text-stone-800 font-medium"
                   />
                   {searchCatName && (
                     <button
                       onClick={() => setSearchCatName('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400 hover:text-stone-600 bg-stone-200/60 px-1.5 py-0.5 rounded"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-stone-500 hover:text-stone-700 bg-[#EFEAE0] px-2 py-0.5 rounded-md"
                     >
                       Effacer
                     </button>
@@ -742,19 +795,19 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
 
                 {/* Quick select tags */}
                 {uniqueCats.length > 0 && (
-                  <div className="pt-2">
-                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
+                  <div className="pt-1.5">
+                    <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-wider block mb-1">
                       Suggestions :
                     </span>
-                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
                       {uniqueCats.map(cat => (
                         <button
                           key={cat}
                           onClick={() => setSearchCatName(cat)}
-                          className={`text-xs px-2.5 py-1 rounded-lg transition-all border font-bold ${
+                          className={`text-xs px-2 py-0.5 rounded-lg transition-colors border font-semibold ${
                             searchCatName.toLowerCase() === cat.toLowerCase()
-                              ? 'bg-pink-100 border-pink-300 text-pink-700 shadow-sm'
-                              : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-600'
+                              ? 'bg-[#13382C] border-[#13382C] text-white shadow-sm'
+                              : 'bg-[#FAF8F4] hover:bg-[#EFEAE0] border-[#E4DDD1] text-stone-700'
                           }`}
                         >
                           {cat}
@@ -766,35 +819,35 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
               </div>
 
               {/* Columns Selector */}
-              <div className="md:col-span-2 space-y-2">
+              <div className="md:col-span-2 space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-black text-stone-500 uppercase tracking-wider block">
+                  <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider block">
                     Colonnes à afficher dans le rapport
                   </label>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSelectedColumns(availableColumns.map(c => c.id))}
-                      className="text-[10px] font-bold text-pink-600 hover:text-pink-700 bg-pink-50 hover:bg-pink-100 px-2 py-1 rounded-lg transition-colors"
+                      className="text-xs font-semibold text-emerald-800 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg transition-colors"
                     >
                       Tout cocher
                     </button>
                     <button
                       onClick={() => setSelectedColumns(['date', 'cat_name', 'behavior'])}
-                      className="text-[10px] font-bold text-stone-500 hover:text-stone-700 bg-stone-100 hover:bg-stone-200 px-2 py-1 rounded-lg transition-colors"
+                      className="text-xs font-semibold text-stone-600 hover:text-stone-800 bg-[#F4F0E8] hover:bg-[#EAE3D5] px-2 py-0.5 rounded-lg transition-colors"
                     >
                       Réinitialiser
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-stone-50 p-4 rounded-xl border border-stone-100">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 bg-[#FAF8F4] p-3 rounded-xl border border-[#E4DDD1]">
                   {availableColumns.map((col) => {
                     const isChecked = selectedColumns.includes(col.id);
                     return (
                       <label
                         key={col.id}
-                        className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer transition-colors hover:bg-stone-100/80 ${
-                          isChecked ? 'text-stone-800 font-semibold' : 'text-stone-400'
+                        className={`flex items-center gap-2 p-1 rounded-lg cursor-pointer transition-colors hover:bg-white ${
+                          isChecked ? 'text-stone-900 font-semibold' : 'text-stone-500'
                         }`}
                       >
                         <input
@@ -809,7 +862,7 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
                               setSelectedColumns(prev => [...prev, col.id]);
                             }
                           }}
-                          className="w-4 h-4 text-pink-500 rounded border-stone-300 focus:ring-pink-500"
+                          className="w-3.5 h-3.5 text-emerald-700 rounded border-stone-300 focus:ring-emerald-600"
                         />
                         <span className="text-xs">{col.label}</span>
                       </label>
@@ -821,11 +874,11 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
           </div>
 
           {/* Results Table Section */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 space-y-4 print:p-0 print:border-0 print:shadow-none">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2] space-y-3 print:p-0 print:border-0 print:shadow-none">
             {/* Header only shown on print */}
             <div className="hidden print:block mb-6 border-b border-stone-200 pb-4">
-              <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Rapport de Suivi Journalier</h1>
-              <div className="mt-2 text-sm text-stone-600 flex flex-wrap gap-x-6 gap-y-1">
+              <h1 className="font-display text-2xl font-bold text-stone-900 tracking-tight">Rapport de Suivi Journalier</h1>
+              <div className="mt-2 text-sm text-stone-600 flex flex-wrap gap-x-6 gap-y-1 tabular-nums">
                 {searchCatName && (
                   <div>
                     <span className="font-bold">Animal : </span>
@@ -843,16 +896,16 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
               </div>
             </div>
 
-            <div className="flex justify-between items-center border-b border-stone-100 pb-4 print:hidden">
-              <h3 className="font-bold text-stone-800 flex items-center gap-2 text-lg">
-                <CheckCircle className="text-emerald-500" size={20} />
-                Résultats du rapport ({filteredLogs.length} relevé(s))
+            <div className="flex flex-wrap justify-between items-center gap-3 border-b border-[#EDE6DA] pb-3 print:hidden">
+              <h3 className="font-display font-semibold text-stone-900 flex items-center gap-2 text-base tabular-nums">
+                <CheckCircle className="text-emerald-700" size={18} />
+                Résultats du rapport ({filteredLogs.length} relevé{filteredLogs.length > 1 ? 's' : ''})
               </h3>
               {filteredLogs.length > 0 && (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={generatePDFReport}
-                    className="text-xs font-bold text-white bg-pink-600 hover:bg-pink-700 px-3 py-1.5 rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+                    className="text-xs font-semibold text-white bg-[#13382C] hover:bg-[#0E2B22] px-3 py-1.5 rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
                   >
                     <FileText size={14} />
                     <span>Télécharger PDF</span>
@@ -862,7 +915,7 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
                       window.focus();
                       window.print();
                     }}
-                    className="text-xs font-bold text-stone-600 hover:text-stone-800 border border-stone-200 bg-white px-3 py-1.5 rounded-xl shadow-sm hover:bg-stone-50 transition-colors flex items-center gap-1"
+                    className="text-xs font-semibold text-stone-700 hover:text-stone-900 border border-[#E4DDD1] bg-[#FAF8F4] px-3 py-1.5 rounded-xl hover:bg-[#F1ECE1] transition-colors flex items-center gap-1"
                   >
                     Imprimer
                   </button>
@@ -871,69 +924,71 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
             </div>
 
             {isFetchingLogs ? (
-              <div className="py-12 text-center text-stone-500">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mx-auto mb-2"></div>
+              <div className="py-10 text-center text-sm text-stone-500">
+                <div className="animate-spin rounded-full h-7 w-7 border-2 border-emerald-200 border-t-[#13382C] mx-auto mb-2.5"></div>
                 Génération du rapport...
               </div>
             ) : filteredLogs.length === 0 ? (
-              <div className="py-12 text-center text-stone-500 flex flex-col items-center">
-                <AlertCircle className="text-stone-300 mb-2" size={36} />
-                <p className="font-medium">Aucun historique trouvé pour cet animal.</p>
-                <p className="text-xs text-stone-400 mt-1">Essayez un autre nom de chat ou élargissez votre recherche.</p>
+              <div className="py-10 text-center text-stone-500 flex flex-col items-center">
+                <div className="w-10 h-10 rounded-xl bg-[#F4F0E8] text-stone-400 flex items-center justify-center mb-2.5">
+                  <AlertCircle size={20} />
+                </div>
+                <p className="font-medium text-sm text-stone-700">Aucun historique trouvé pour cet animal.</p>
+                <p className="text-xs text-stone-400 mt-0.5">Essayez un autre nom de chat ou élargissez votre recherche.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto border border-stone-100 rounded-xl print:border-0 print:rounded-none">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-stone-50 text-stone-500 uppercase text-xs font-bold border-b border-stone-100">
+              <div className="overflow-x-auto border border-[#EDE6DA] rounded-xl print:border-0 print:rounded-none">
+                <table className="w-full text-left text-[13px]">
+                  <thead className="bg-[#F4F0E8] text-stone-600 uppercase text-[11px] font-semibold border-b border-[#E5DED2]">
                     <tr>
                       {availableColumns.filter(c => selectedColumns.includes(c.id)).map(col => (
-                        <th key={col.id} className="px-4 py-3">
+                        <th key={col.id} className="px-3.5 py-2.5">
                           {col.label}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-stone-100 text-stone-600">
+                  <tbody className="divide-y divide-[#F0E9DC] text-stone-600">
                     {filteredLogs.map((log, idx) => (
-                      <tr key={`${log.id}-${idx}`} className="hover:bg-stone-50/50 transition-colors">
+                      <tr key={`${log.id}-${idx}`} className="hover:bg-[#FAF8F4] transition-colors">
                         {selectedColumns.includes('date') && (
-                          <td className="px-4 py-3 font-semibold text-stone-800 whitespace-nowrap">
+                          <td className="px-3.5 py-2.5 font-semibold text-stone-800 whitespace-nowrap tabular-nums">
                             {formatDateSafely(log.date)}
                           </td>
                         )}
                         {selectedColumns.includes('cat_name') && (
-                          <td className="px-4 py-3 font-black text-stone-950">
+                          <td className="px-3.5 py-2.5 font-semibold text-stone-900">
                             {log.cat_name}
                           </td>
                         )}
                         {selectedColumns.includes('box_number') && (
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="text-xs font-bold text-stone-600 bg-stone-100 px-2 py-1 rounded">
+                          <td className="px-3.5 py-2.5 whitespace-nowrap">
+                            <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md tabular-nums">
                               Box {log.box_number}
                             </span>
                           </td>
                         )}
                         {selectedColumns.includes('is_present') && (
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-                              log.is_present 
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
-                                : 'bg-rose-50 text-rose-700 border border-rose-100'
+                          <td className="px-3.5 py-2.5 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${
+                              log.is_present
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
                             }`}>
                               {log.is_present ? 'Oui' : 'Non'}
                             </span>
                           </td>
                         )}
                         {selectedColumns.includes('absence_reason') && (
-                          <td className="px-4 py-3 text-stone-700 min-w-[120px]">
+                          <td className="px-3.5 py-2.5 text-stone-700 min-w-[120px]">
                             {log.absence_reason || '-'}
                           </td>
                         )}
                         {selectedColumns.includes('litter_used') && (
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-                              log.litter_used 
-                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' 
+                          <td className="px-3.5 py-2.5 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${
+                              log.litter_used
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
                                 : 'bg-stone-100 text-stone-500'
                             }`}>
                               {log.litter_used ? 'Oui' : 'Non'}
@@ -941,33 +996,33 @@ export default function DailyTrackingView({ stays, showToast, askConfirm }: Dail
                           </td>
                         )}
                         {selectedColumns.includes('meal_eaten') && (
-                          <td className="px-4 py-3 font-semibold whitespace-nowrap">
-                            {log.meal_eaten === 'complete' && <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 text-xs">Entier</span>}
-                            {log.meal_eaten === 'partial' && <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 text-xs">Partiel</span>}
-                            {log.meal_eaten === 'none' && <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 text-xs">Pas du tout</span>}
+                          <td className="px-3.5 py-2.5 font-semibold whitespace-nowrap">
+                            {log.meal_eaten === 'complete' && <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-xs">Entier</span>}
+                            {log.meal_eaten === 'partial' && <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 text-xs">Partiel</span>}
+                            {log.meal_eaten === 'none' && <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 text-xs">Pas du tout</span>}
                           </td>
                         )}
                         {selectedColumns.includes('gets_along') && (
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-3.5 py-2.5 whitespace-nowrap">
                             {log.gets_along ? (
-                              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 text-xs font-bold">Oui</span>
+                              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-xs font-semibold">Oui</span>
                             ) : (
-                              <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 text-xs font-bold">Non</span>
+                              <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 text-xs font-semibold">Non</span>
                             )}
                           </td>
                         )}
                         {selectedColumns.includes('behavior') && (
-                          <td className="px-4 py-3 text-stone-800 italic bg-amber-50/10 min-w-[200px]" title={log.behavior}>
+                          <td className="px-3.5 py-2.5 text-stone-800 italic bg-[#FBF6EB]/60 min-w-[200px]" title={log.behavior}>
                             {log.behavior || '-'}
                           </td>
                         )}
                         {selectedColumns.includes('temperature') && (
-                          <td className="px-4 py-3 text-stone-600 whitespace-nowrap">
+                          <td className="px-3.5 py-2.5 text-stone-600 whitespace-nowrap tabular-nums">
                             {log.temperature ? `${log.temperature} °C` : '-'}
                           </td>
                         )}
                         {selectedColumns.includes('humidity') && (
-                          <td className="px-4 py-3 text-stone-600 whitespace-nowrap">
+                          <td className="px-3.5 py-2.5 text-stone-600 whitespace-nowrap tabular-nums">
                             {log.humidity ? `${log.humidity} %` : '-'}
                           </td>
                         )}

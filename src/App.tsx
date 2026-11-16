@@ -149,6 +149,7 @@ import {
   Users,
   Cat as CatIcon,
   Calendar,
+  CalendarDays,
   HeartPulse,
   FileText,
   Settings as SettingsIcon,
@@ -170,12 +171,127 @@ import {
   Menu,
   CreditCard,
   ExternalLink,
+  RefreshCw,
+  Search,
+  BarChart3,
+  ClipboardList,
+  Receipt,
+  MapPin,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { format, isValid } from "date-fns";
 import { fr } from "date-fns/locale";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { handleFirebaseApi as fetch } from "./firebaseInterceptor";
+
+const DEFAULT_BRAND_LOGO =
+  "/src/assets/images/chathotel_brand_logo_1794854269095.jpg";
+const LOGIN_HERO_IMAGE =
+  "/src/assets/images/login_cat_lounge_1794854269604.jpg";
+const SUITE_BANNER_IMAGE =
+  "/src/assets/images/chathotel_suite_banner_1794854270166.jpg";
+
+function BrandLogo({
+  logoUrl,
+  sizeClass = "w-10 h-10",
+  roundedClass = "rounded-xl",
+}: {
+  logoUrl?: string;
+  sizeClass?: string;
+  roundedClass?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const src = !failed && (logoUrl || DEFAULT_BRAND_LOGO);
+
+  if (!src) {
+    return (
+      <div
+        className={`${sizeClass} ${roundedClass} bg-gradient-to-br from-emerald-700 to-emerald-900 text-amber-200 flex items-center justify-center shrink-0 shadow-sm`}
+      >
+        <CatIcon size={20} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt="Logo Chat'Hotel"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className={`${sizeClass} ${roundedClass} object-cover shrink-0 bg-[#FAF6EE]`}
+    />
+  );
+}
+
+const getBoxBadgeClasses = (boxNumber: number) => {
+  const palette = [
+    "bg-emerald-100 text-emerald-800 border-emerald-200",
+    "bg-amber-100 text-amber-800 border-amber-200",
+    "bg-sky-100 text-sky-800 border-sky-200",
+    "bg-rose-100 text-rose-800 border-rose-200",
+    "bg-violet-100 text-violet-800 border-violet-200",
+    "bg-teal-100 text-teal-800 border-teal-200",
+  ];
+  return palette[(Math.max(1, boxNumber) - 1) % palette.length];
+};
+
+const getMonogramClasses = (seed: string) => {
+  const palette = [
+    "bg-emerald-100 text-emerald-800",
+    "bg-amber-100 text-amber-800",
+    "bg-sky-100 text-sky-800",
+    "bg-rose-100 text-rose-800",
+    "bg-violet-100 text-violet-800",
+  ];
+  const code = (seed || "A").charCodeAt(0);
+  return palette[code % palette.length];
+};
+
+const TAB_META: Record<string, { title: string; subtitle: string }> = {
+  stays: {
+    title: "Séjours & Accueil",
+    subtitle: "Gestion des réservations, arrivées et départs",
+  },
+  calendar: {
+    title: "Calendrier des Box",
+    subtitle: "Planification mensuelle et occupation par suite",
+  },
+  clients: {
+    title: "Fichier Clients",
+    subtitle: "Propriétaires, coordonnées et contacts de confiance",
+  },
+  cats: {
+    title: "Registre des Animaux",
+    subtitle: "Profils félins, vaccins, traitements et observations",
+  },
+  stats: {
+    title: "Statistiques",
+    subtitle: "Taux de remplissage et chiffre d'affaires",
+  },
+  reports: {
+    title: "Rapports & Registres",
+    subtitle: "Registre entrées/sorties et synthèse sanitaire",
+  },
+  contracts: {
+    title: "Contrats & Fiches",
+    subtitle: "Génération PDF et archivage des documents signés",
+  },
+  "all-invoices": {
+    title: "Facturations",
+    subtitle: "Suivi des règlements, acomptes et trésorerie",
+  },
+  "daily-tracking": {
+    title: "Suivi Journalier",
+    subtitle: "Constantes de la chatterie et bien-être quotidien",
+  },
+  settings: {
+    title: "Configuration",
+    subtitle: "Identité de l'établissement, box et paramètres",
+  },
+};
 
 const formatDateSafe = (
   dateString: string | undefined | null,
@@ -219,8 +335,6 @@ import {
   User,
 } from "firebase/auth";
 
-// ... (Types are already there)
-
 function ConfirmModal({
   isOpen,
   onClose,
@@ -242,21 +356,25 @@ function ConfirmModal({
 }) {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 transform animate-in zoom-in-95 duration-200">
-        <div className="flex items-center gap-3 text-stone-900">
+    <div className="fixed inset-0 bg-[#13382C]/40 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-xl border border-[#E5DED2] max-w-md w-full p-5 space-y-3.5 transform animate-in zoom-in-95 duration-200">
+        <div className="flex items-center gap-2.5 text-stone-900">
           {isDanger ? (
-            <AlertCircle className="text-red-500" size={24} />
+            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+              <AlertCircle size={18} />
+            </div>
           ) : (
-            <CheckCircle2 className="text-emerald-500" size={24} />
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={18} />
+            </div>
           )}
-          <h3 className="text-lg font-bold">{title}</h3>
+          <h3 className="font-display text-base font-semibold">{title}</h3>
         </div>
-        <p className="text-sm text-stone-600 leading-relaxed">{message}</p>
-        <div className="flex gap-3 pt-2">
+        <p className="text-[13px] text-stone-600 leading-relaxed">{message}</p>
+        <div className="flex gap-2.5 pt-1">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-stone-200 rounded-xl text-sm font-bold text-stone-600 hover:bg-stone-50 transition-colors"
+            className="flex-1 px-3.5 py-2 border border-[#E4DDD1] bg-[#FAF8F4] rounded-xl text-xs font-semibold text-stone-700 hover:bg-[#F1ECE1] transition-colors"
           >
             {cancelText}
           </button>
@@ -265,7 +383,7 @@ function ConfirmModal({
               onConfirm();
               onClose();
             }}
-            className={`flex-1 px-4 py-2 rounded-xl text-sm font-bold text-white transition-colors ${isDanger ? "bg-red-500 hover:bg-red-600" : "bg-emerald-600 hover:bg-emerald-700"}`}
+            className={`flex-1 px-3.5 py-2 rounded-xl text-xs font-semibold text-white transition-colors ${isDanger ? "bg-rose-600 hover:bg-rose-700" : "bg-[#13382C] hover:bg-[#0E2B22]"}`}
           >
             {confirmText}
           </button>
@@ -291,19 +409,19 @@ function Toast({
 
   return (
     <div
-      className={`fixed bottom-6 right-6 p-4 rounded-xl shadow-lg border flex items-center gap-3 z-[110] animate-in slide-in-from-right-10 duration-300 ${type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-800" : "bg-red-50 border-red-100 text-red-800"}`}
+      className={`fixed bottom-5 right-5 px-3.5 py-2.5 rounded-xl shadow-lg border flex items-center gap-2.5 z-[110] animate-in slide-in-from-right-10 duration-300 ${type === "success" ? "bg-[#EFF4F0] border-emerald-200 text-[#13382C]" : "bg-rose-50 border-rose-200 text-rose-800"}`}
     >
       {type === "success" ? (
-        <CheckCircle2 size={20} />
+        <CheckCircle2 size={17} className="text-emerald-700 shrink-0" />
       ) : (
-        <AlertCircle size={20} />
+        <AlertCircle size={17} className="text-rose-600 shrink-0" />
       )}
-      <span className="text-sm font-bold">{message}</span>
+      <span className="text-xs font-semibold">{message}</span>
       <button
         onClick={onClose}
         className="p-1 hover:bg-black/5 rounded-full transition-colors"
       >
-        <X size={16} />
+        <X size={14} />
       </button>
     </div>
   );
@@ -394,6 +512,7 @@ export default function App() {
     onConfirm: () => void;
     isDanger?: boolean;
   }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -513,10 +632,11 @@ export default function App() {
   // 1. Loader pendant la vérification initiale de l'auth
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#F6F3EC]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-stone-500 font-medium">
+          <BrandLogo sizeClass="w-16 h-16" roundedClass="rounded-2xl" />
+          <div className="w-8 h-8 border-3 border-emerald-700 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-stone-600 font-medium text-sm">
             Vérification de l'accès...
           </p>
         </div>
@@ -527,59 +647,93 @@ export default function App() {
   // 2. Si non connecté, écran de login uniquement
   if (!currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 p-4 font-sans">
-        <div className="max-w-md w-full bg-white p-10 rounded-3xl shadow-2xl border border-stone-100 text-center space-y-8">
-          <div className="bg-indigo-600 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto shadow-xl rotate-3">
-            <CatIcon size={48} className="text-white -rotate-3" />
+      <div className="min-h-screen flex items-center justify-center bg-[#F6F3EC] p-4 sm:p-6">
+        <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl shadow-stone-300/40 border border-[#E5DEC9] overflow-hidden grid grid-cols-1 lg:grid-cols-12 items-stretch">
+          <div className="lg:col-span-6 p-6 sm:p-8 flex flex-col justify-between space-y-5">
+            <div className="flex items-center gap-3">
+              <BrandLogo
+                logoUrl={settings.logo}
+                sizeClass="w-11 h-11"
+                roundedClass="rounded-xl border border-[#E6DFD1] shadow-sm"
+              />
+              <div>
+                <h1 className="font-display text-xl font-semibold text-[#13382C] tracking-tight">
+                  Chat'Hotel
+                </h1>
+                <p className="text-[11px] font-medium text-amber-700">
+                  Pension Féline & Soins
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h2 className="font-display text-2xl sm:text-3xl font-semibold text-[#18221D] leading-tight text-balance">
+                Bienvenue dans votre espace de gestion
+              </h2>
+              <p className="text-stone-600 text-sm leading-relaxed">
+                Pilotez sereinement l'accueil de vos pensionnaires : séjours,
+                planning des box, fiches de santé, suivi journalier et
+                facturation.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {loginError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 whitespace-pre-line leading-relaxed">
+                  {loginError}
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                  setLoginError(null);
+                  try {
+                    await signInWithPopup(auth, new GoogleAuthProvider());
+                  } catch (error: any) {
+                    console.error("Erreur de connexion:", error);
+                    const currentDomain = window.location.hostname;
+                    const configProjectId =
+                      (auth as any).app?.options?.projectId || "Inconnu";
+                    const consoleLink = `https://console.firebase.google.com/project/${configProjectId}/authentication/settings`;
+                    setLoginError(
+                      `Connexion bloquée (${error?.code || "erreur"}).\nDomaine actuel : ${currentDomain}\nProjet Firebase : ${configProjectId}\nVérifiez les domaines autorisés dans : ${consoleLink}`,
+                    );
+                  }
+                }}
+                className="w-full py-3 px-5 bg-[#13382C] hover:bg-[#0E2B22] text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-emerald-950/15 flex items-center justify-center gap-2.5 active:scale-[0.99] cursor-pointer"
+              >
+                <img
+                  src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                  alt="Google"
+                  className="w-4 h-4 bg-white rounded-full p-0.5"
+                />
+                <span>S'identifier avec Google</span>
+              </button>
+
+              <p className="text-[11px] text-stone-500 leading-relaxed">
+                Accès réservé au personnel autorisé de l'établissement.
+              </p>
+            </div>
           </div>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-black text-stone-900 tracking-tight">
-              ChatHotel
-            </h1>
-            <p className="text-stone-500 text-sm font-medium">
-              Système de Gestion Sécurisé
-            </p>
-          </div>
-          <div className="p-4 bg-stone-50 rounded-2xl text-xs text-stone-500 leading-relaxed italic">
-            "Cet accès est strictement réservé au personnel autorisé. Toute
-            tentative de connexion non autorisée est enregistrée."
-          </div>
-          <button
-            onClick={async () => {
-              try {
-                await signInWithPopup(auth, new GoogleAuthProvider());
-              } catch (error: any) {
-                console.error("Erreur de connexion:", error);
-                const currentDomain = window.location.hostname;
-                const configAuthDomain =
-                  (auth as any).app?.options?.authDomain || "Inconnu";
-                const configProjectId =
-                  (auth as any).app?.options?.projectId || "Inconnu";
-                const consoleLink = `https://console.firebase.google.com/project/${configProjectId}/authentication/settings`;
 
-                alert(`Erreur de connexion : Firebase (auth/unauthorized-domain)
-
-Domaine actuel : ${currentDomain}
-Projet Firebase détecté : ${configProjectId}
-
-ACTION REQUISE :
-1. Allez sur cette page (copiez-collez le lien) :
-${consoleLink}
-
-2. Dans l'onglet "Settings" > "Authorized Domains", vérifiez que '${currentDomain}' est présent.
-
-IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en haut à gauche), c'est que vous modifiez le mauvais projet.`);
-              }
-            }}
-            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95"
-          >
+          <div className="lg:col-span-6 relative min-h-[240px] lg:min-h-[430px] bg-[#13382C]">
             <img
-              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-              alt="Google"
-              className="w-5 h-5 bg-white rounded-full p-0.5"
+              src={LOGIN_HERO_IMAGE}
+              alt="Salon ensoleillé de la pension Chat'Hotel"
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover"
             />
-            S'identifier avec Google
-          </button>
+            <div className="absolute inset-0 bg-gradient-to-t from-[#123025]/85 via-[#123025]/20 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+              <p className="font-display text-lg font-medium text-amber-100">
+                Un séjour doux et attentif pour chaque chat.
+              </p>
+              <p className="text-[11px] text-emerald-100/80 mt-0.5">
+                Suites individuelles · Suivi sanitaire quotidien · Espace
+                clients
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -592,17 +746,19 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 p-4">
-        <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl border border-stone-100 text-center space-y-4">
+      <div className="min-h-screen flex items-center justify-center bg-[#F6F3EC] p-4">
+        <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl border border-[#E5DEC9] text-center space-y-4">
           <AlertCircle size={48} className="text-red-500 mx-auto" />
-          <h1 className="text-xl font-bold text-stone-900">Accès Refusé</h1>
-          <p className="text-stone-600">
+          <h1 className="font-display text-2xl font-semibold text-stone-900">
+            Accès Refusé
+          </h1>
+          <p className="text-stone-600 text-sm">
             Désolé, votre adresse ({currentUser.email}) n'est pas autorisée à
             accéder à ce système.
           </p>
           <button
             onClick={() => signOut(auth)}
-            className="w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-600 font-bold rounded-xl transition-all"
+            className="w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl transition-all"
           >
             Se déconnecter
           </button>
@@ -618,10 +774,15 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-stone-50">
+      <div className="flex items-center justify-center min-h-screen bg-[#F6F3EC]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-stone-500 font-medium">
+          <BrandLogo
+            logoUrl={settings.logo}
+            sizeClass="w-16 h-16"
+            roundedClass="rounded-2xl border border-[#E5DEC9] shadow-sm"
+          />
+          <div className="w-8 h-8 border-3 border-emerald-700 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-stone-600 font-medium text-sm">
             Chargement du Chat'Hotel...
           </p>
         </div>
@@ -629,69 +790,75 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
     );
   }
 
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const totalBoxesCount = parseInt(settings.total_boxes || "3");
+  const occupiedTodayCount = stays.filter(
+    (s) =>
+      s.arrival_date <= todayStr &&
+      (s.actual_departure || s.planned_departure) >= todayStr,
+  ).length;
+  const availableBoxesCount = Math.max(0, totalBoxesCount - occupiedTodayCount);
+  const currentTabMeta = TAB_META[activeTab] || TAB_META.stays;
+
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans tracking-tight">
+    <div className="min-h-screen bg-[#F6F3EC] text-[#1D2420] font-sans">
       {/* Mobile Header */}
-      <div className="lg:hidden bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between sticky top-0 z-50 print:hidden">
-        <div className="flex items-center gap-2">
-          {settings.logo ? (
-            <img
-              src={settings.logo}
-              alt="Logo"
-              className="w-8 h-8 rounded object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded flex items-center justify-center">
-              <CatIcon size={16} />
-            </div>
-          )}
-          <span className="font-bold text-lg tracking-tight">Chat'Hotel</span>
+      <div className="lg:hidden bg-[#13382C] text-white px-4 py-2.5 flex items-center justify-between sticky top-0 z-50 print:hidden shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <BrandLogo
+            logoUrl={settings.logo}
+            sizeClass="w-8 h-8"
+            roundedClass="rounded-lg ring-1 ring-white/20"
+          />
+          <span className="font-display font-semibold text-base tracking-tight">
+            Chat'Hotel
+          </span>
         </div>
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="p-2 hover:bg-stone-100 rounded-lg text-stone-600"
+          aria-label="Ouvrir le menu"
+          className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors"
         >
-          {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
 
       {/* Sidebar Overlay */}
       {isMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] lg:hidden print:hidden"
+          className="fixed inset-0 bg-black/45 backdrop-blur-sm z-[60] lg:hidden print:hidden"
           onClick={() => setIsMenuOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <div
-        className={`fixed left-0 top-0 h-full w-64 bg-white border-r border-stone-200 flex flex-col z-[70] transition-transform duration-300 lg:translate-x-0 print:hidden ${isMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
+      <aside
+        className={`fixed left-0 top-0 h-full w-[232px] bg-[#13382C] text-[#EFF4F0] flex flex-col z-[70] transition-transform duration-300 lg:translate-x-0 print:hidden shadow-xl shadow-emerald-950/15 ${isMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
-        <div className="p-6 border-b border-stone-100 hidden lg:flex items-center gap-3">
-          {settings.logo ? (
-            <img
-              src={settings.logo}
-              alt="Logo"
-              className="w-10 h-10 rounded-lg object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center">
-              <CatIcon size={24} />
-            </div>
-          )}
-          <h1 className="font-bold text-xl tracking-tight">Chat'Hotel</h1>
+        <div className="px-4 py-3.5 border-b border-white/10 hidden lg:flex items-center gap-3">
+          <BrandLogo
+            logoUrl={settings.logo}
+            sizeClass="w-9 h-9"
+            roundedClass="rounded-xl ring-1 ring-white/20 shadow-md"
+          />
+          <div className="min-w-0">
+            <h1 className="font-display font-semibold text-lg text-white tracking-tight truncate">
+              {settings.company_name || "Chat'Hotel"}
+            </h1>
+            <p className="text-[11px] text-emerald-200/75 truncate">
+              Pension féline
+            </p>
+          </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto">
           <NavItem
             active={activeTab === "stays"}
             onClick={() => {
               setActiveTab("stays");
               setIsMenuOpen(false);
             }}
-            icon={<Calendar size={20} />}
+            icon={<Calendar size={16} />}
             label="Séjours"
           />
           <NavItem
@@ -700,7 +867,7 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
               setActiveTab("calendar");
               setIsMenuOpen(false);
             }}
-            icon={<Calendar size={20} className="text-blue-500" />}
+            icon={<CalendarDays size={16} />}
             label="Calendrier"
           />
           <NavItem
@@ -709,7 +876,7 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
               setActiveTab("clients");
               setIsMenuOpen(false);
             }}
-            icon={<Users size={20} />}
+            icon={<Users size={16} />}
             label="Clients"
           />
           <NavItem
@@ -718,44 +885,8 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
               setActiveTab("cats");
               setIsMenuOpen(false);
             }}
-            icon={<CatIcon size={20} />}
+            icon={<CatIcon size={16} />}
             label="Animaux"
-          />
-          <NavItem
-            active={activeTab === "stats"}
-            onClick={() => {
-              setActiveTab("stats");
-              setIsMenuOpen(false);
-            }}
-            icon={<FileText size={20} className="text-orange-500" />}
-            label="Statistiques"
-          />
-          <NavItem
-            active={activeTab === "reports"}
-            onClick={() => {
-              setActiveTab("reports");
-              setIsMenuOpen(false);
-            }}
-            icon={<FileText size={20} className="text-purple-500" />}
-            label="Rapports"
-          />
-          <NavItem
-            active={activeTab === "contracts"}
-            onClick={() => {
-              setActiveTab("contracts");
-              setIsMenuOpen(false);
-            }}
-            icon={<FileText size={20} className="text-indigo-500" />}
-            label="Contrats"
-          />
-          <NavItem
-            active={activeTab === "all-invoices"}
-            onClick={() => {
-              setActiveTab("all-invoices");
-              setIsMenuOpen(false);
-            }}
-            icon={<FileText size={20} className="text-emerald-500" />}
-            label="Facturations"
           />
           <NavItem
             active={activeTab === "daily-tracking"}
@@ -763,65 +894,142 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
               setActiveTab("daily-tracking");
               setIsMenuOpen(false);
             }}
-            icon={<HeartPulse size={20} className="text-pink-500" />}
+            icon={<HeartPulse size={16} />}
             label="Suivi Journalier"
           />
-          <div className="pt-4 mt-4 border-t border-stone-100 flex flex-col gap-2">
+
+          <div className="my-2 border-t border-white/10" />
+
+          <NavItem
+            active={activeTab === "all-invoices"}
+            onClick={() => {
+              setActiveTab("all-invoices");
+              setIsMenuOpen(false);
+            }}
+            icon={<Receipt size={16} />}
+            label="Facturations"
+          />
+          <NavItem
+            active={activeTab === "contracts"}
+            onClick={() => {
+              setActiveTab("contracts");
+              setIsMenuOpen(false);
+            }}
+            icon={<FileText size={16} />}
+            label="Contrats"
+          />
+          <NavItem
+            active={activeTab === "reports"}
+            onClick={() => {
+              setActiveTab("reports");
+              setIsMenuOpen(false);
+            }}
+            icon={<ClipboardList size={16} />}
+            label="Rapports"
+          />
+          <NavItem
+            active={activeTab === "stats"}
+            onClick={() => {
+              setActiveTab("stats");
+              setIsMenuOpen(false);
+            }}
+            icon={<BarChart3 size={16} />}
+            label="Statistiques"
+          />
+
+          <div className="pt-2 mt-2 border-t border-white/10 flex flex-col gap-0.5">
             <NavItem
               active={activeTab === "settings"}
               onClick={() => {
                 setActiveTab("settings");
                 setIsMenuOpen(false);
               }}
-              icon={<SettingsIcon size={20} />}
+              icon={<SettingsIcon size={16} />}
               label="Configuration"
             />
-            <button
-              onClick={() => signOut(auth)}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-all"
-            >
-              <LogOut size={20} />
-              <span>Se déconnecter</span>
-            </button>
           </div>
         </nav>
 
-        <div className="p-4 border-t border-stone-100">
-          <div
-            className={`p-3 rounded-xl flex items-center gap-3 ${stays.filter((s) => s.arrival_date <= format(new Date(), "yyyy-MM-dd") && (s.actual_departure || s.planned_departure) >= format(new Date(), "yyyy-MM-dd")).length >= parseInt(settings.total_boxes || "3") ? "bg-red-50" : "bg-emerald-50"}`}
-          >
-            <div
-              className={`w-2 h-2 rounded-full animate-pulse ${stays.filter((s) => s.arrival_date <= format(new Date(), "yyyy-MM-dd") && (s.actual_departure || s.planned_departure) >= format(new Date(), "yyyy-MM-dd")).length >= parseInt(settings.total_boxes || "3") ? "bg-red-500" : "bg-emerald-500"}`}
-            ></div>
-            <span
-              className={`text-xs font-medium ${stays.filter((s) => s.arrival_date <= format(new Date(), "yyyy-MM-dd") && (s.actual_departure || s.planned_departure) >= format(new Date(), "yyyy-MM-dd")).length >= parseInt(settings.total_boxes || "3") ? "text-red-700" : "text-emerald-700"}`}
-            >
-              {Math.max(
-                0,
-                parseInt(settings.total_boxes || "3") -
-                  stays.filter(
-                    (s) =>
-                      s.arrival_date <= format(new Date(), "yyyy-MM-dd") &&
-                      (s.actual_departure || s.planned_departure) >=
-                        format(new Date(), "yyyy-MM-dd"),
-                  ).length,
-              )}{" "}
-              Box Disponibles
-            </span>
+        <div className="p-3 border-t border-white/10 space-y-2.5 bg-[#0F2E24]">
+          <div className="p-2.5 rounded-xl bg-white/10 border border-white/10">
+            <div className="flex items-center justify-between text-[11px] mb-1.5">
+              <span className="text-emerald-100/80 font-medium">
+                Disponibilité du jour
+              </span>
+              <span
+                className={`font-mono font-semibold tabular-nums ${availableBoxesCount === 0 ? "text-amber-300" : "text-emerald-200"}`}
+              >
+                {availableBoxesCount}/{totalBoxesCount}
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-white/15 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${availableBoxesCount === 0 ? "bg-amber-400" : "bg-emerald-300"}`}
+                style={{
+                  width: `${Math.min(100, Math.round((occupiedTodayCount / Math.max(1, totalBoxesCount)) * 100))}%`,
+                }}
+              />
+            </div>
+            <p className="text-[11px] text-emerald-100/75 mt-1.5">
+              {availableBoxesCount > 0
+                ? `${availableBoxesCount} box libre${availableBoxesCount > 1 ? "s" : ""} aujourd'hui`
+                : "Pension complète aujourd'hui"}
+            </p>
           </div>
-          <button
-            onClick={() => fetchData(true)}
-            className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 text-[10px] font-bold text-stone-400 hover:text-stone-600 transition-colors border border-stone-100 rounded-lg"
-          >
-            <CheckCircle2 size={10} />
-            <span>Version 1.0.3 - Forcer l'actualisation</span>
-          </button>
-        </div>
-      </div>
 
-      <main className="lg:ml-64 p-4 lg:p-8 transition-all duration-300 print:ml-0 print:p-0">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => fetchData(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-emerald-100 bg-white/8 hover:bg-white/15 rounded-lg transition-colors"
+              title="Actualiser les données"
+            >
+              <RefreshCw size={12} />
+              <span>Actualiser</span>
+            </button>
+            <button
+              onClick={() => signOut(auth)}
+              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-rose-200 bg-rose-500/15 hover:bg-rose-500/25 rounded-lg transition-colors"
+              title="Se déconnecter"
+            >
+              <LogOut size={13} />
+              <span>Quitter</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <div className="lg:ml-[232px] min-h-screen flex flex-col transition-all duration-300 print:ml-0">
+        {/* Top Workspace Bar */}
+        <header className="hidden lg:flex items-center justify-between gap-4 px-6 py-2.5 bg-[#FAF8F4]/90 backdrop-blur-md border-b border-[#E6DFD3] sticky top-0 z-40 print:hidden">
+          <div className="min-w-0 flex items-center gap-2 text-xs text-stone-500">
+            <span className="font-medium text-stone-600">{settings.company_name || "Chat'Hotel"}</span>
+            <span aria-hidden="true">·</span>
+            <span className="text-emerald-800 font-semibold">
+              {currentTabMeta.title}
+            </span>
+            <span aria-hidden="true" className="text-stone-300">|</span>
+            <span className="truncate text-stone-500">{currentTabMeta.subtitle}</span>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-[11px] font-medium text-stone-600 capitalize tabular-nums">
+              {format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}
+            </span>
+            <div className="h-3.5 w-px bg-[#E0D8CA]" />
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-900 font-semibold text-[11px] flex items-center justify-center border border-amber-200">
+                {(currentUser.email || "U")[0].toUpperCase()}
+              </div>
+              <span className="text-[11px] font-medium text-stone-700 max-w-[170px] truncate">
+                {currentUser.email}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 w-full max-w-[1260px] mx-auto p-4 sm:p-5 lg:p-6 print:p-0">
         {activeTab === "stays" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <StaysView
               stays={stays}
               cats={cats}
@@ -833,7 +1041,7 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
           </div>
         )}
         {activeTab === "calendar" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <CalendarView
               stays={stays}
               onUpdate={fetchData}
@@ -913,6 +1121,7 @@ IMPORTANT : Si vous voyez un autre projet dans votre console (vérifiez l'ID en 
           />
         )}
       </main>
+      </div>
 
       {toast && (
         <Toast
@@ -968,18 +1177,20 @@ const UpcomingStayCard: React.FC<{ stay: Stay; onClick: () => void }> = ({
   return (
     <div
       onClick={onClick}
-      className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-2 cursor-pointer transition-all ${isAlert ? "border-orange-400 hover:border-orange-500 shadow-orange-100" : isFullyPaid ? "border-emerald-300 hover:border-emerald-400 shadow-emerald-50" : "border-emerald-100 hover:border-emerald-300 hover:shadow-md"}`}
+      className={`bg-white p-3.5 rounded-xl border flex flex-col gap-2 cursor-pointer transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md ${isAlert ? "border-amber-300 hover:border-amber-400" : isFullyPaid ? "border-emerald-300 hover:border-emerald-400" : "border-[#E5DED2] hover:border-emerald-400"}`}
     >
-      <div className="flex justify-between items-start">
-        <div className="flex flex-col">
-          <span className="font-bold text-stone-900">{stay.cat_name}</span>
-          {(stay.cat_age || stay.cat_birth_date) && (
-            <span className="text-[10px] text-stone-500 uppercase">
-              {stay.cat_age || calculateAge(stay.cat_birth_date || "")}
-            </span>
-          )}
+      <div className="flex justify-between items-start gap-2">
+        <div className="min-w-0">
+          <span className="font-semibold text-sm text-stone-900 block truncate">
+            {stay.cat_name}
+          </span>
+          <span className="text-[11px] text-stone-500">
+            {stay.owner_name}
+            {(stay.cat_age || stay.cat_birth_date) &&
+              ` · ${stay.cat_age || calculateAge(stay.cat_birth_date || "")}`}
+          </span>
         </div>
-        <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg">
+        <span className="text-[11px] font-mono font-semibold bg-[#EFF4F0] text-emerald-800 px-2 py-0.5 rounded-md shrink-0 tabular-nums">
           J-
           {Math.ceil(
             (new Date(stay.arrival_date).getTime() -
@@ -988,47 +1199,49 @@ const UpcomingStayCard: React.FC<{ stay: Stay; onClick: () => void }> = ({
           )}
         </span>
       </div>
-      <div className="text-xs text-stone-500">
-        Propriétaire:{" "}
-        <span className="font-medium text-stone-700">{stay.owner_name}</span>
-      </div>
-      <div className="text-xs text-stone-500">
-        Arrivée:{" "}
-        <span className="font-medium text-stone-700">
-          {format(new Date(stay.arrival_date), "dd/MM/yyyy")}
+      <div className="flex items-center justify-between text-xs text-stone-600 pt-1 tabular-nums">
+        <span>
+          Arrivée :{" "}
+          <strong className="font-semibold text-stone-800">
+            {format(new Date(stay.arrival_date), "dd/MM/yyyy")}
+          </strong>
+        </span>
+        <span
+          className={`px-2 py-0.5 rounded-md border text-[11px] font-semibold ${getBoxBadgeClasses(stay.box_number)}`}
+        >
+          Box {stay.box_number}
         </span>
       </div>
-      <div className="text-xs text-stone-500">
-        Box:{" "}
-        <span className="font-medium text-stone-700">{stay.box_number}</span>
-      </div>
       {isFullyPaid ? (
-        <div className="mt-2 pt-2 border-t border-emerald-100 flex flex-col gap-0.5">
-          <p className="text-[10px] font-bold text-emerald-600">
-            ✓ Séjour réglé dans son intégralité
-          </p>
+        <div className="mt-1 pt-2 border-t border-emerald-100 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+          <CheckCircle2 size={13} />
+          <span>Séjour réglé dans son intégralité</span>
         </div>
       ) : depositInvoice && depositInvoice.reference_total && dueDate ? (
-        <div className="mt-2 pt-2 border-t border-stone-100 flex flex-col gap-0.5">
-          <p className="text-[10px] text-stone-500">
-            <span className="font-semibold">Total séjour:</span>{" "}
-            {depositInvoice.reference_total.toFixed(2)} €
-          </p>
-          <p className="text-[10px] text-stone-500">
-            <span className="font-semibold">Reste à payer:</span>{" "}
-            {(depositInvoice.reference_total - depositInvoice.amount).toFixed(2)}{" "}
-            €
+        <div className="mt-1 pt-2 border-t border-[#EEE8DC] flex flex-col gap-0.5 tabular-nums">
+          <p className="text-[11px] text-stone-600">
+            Total séjour :{" "}
+            <span className="font-semibold text-stone-800">
+              {depositInvoice.reference_total.toFixed(2)} €
+            </span>{" "}
+            · Reste :{" "}
+            <span className="font-semibold text-stone-800">
+              {(depositInvoice.reference_total - depositInvoice.amount).toFixed(
+                2,
+              )}{" "}
+              €
+            </span>
           </p>
           <p
-            className={`text-[10px] font-bold ${isAlert ? "text-orange-500" : "text-stone-500"}`}
+            className={`text-[11px] font-semibold ${isAlert ? "text-amber-700" : "text-stone-500"}`}
           >
-            Date butoir solde : {format(dueDate, "dd/MM/yyyy")}
+            Échéance solde : {format(dueDate, "dd/MM/yyyy")}
           </p>
         </div>
       ) : null}
     </div>
   );
-}
+};
 
 function StaysView({
   stays,
@@ -1226,21 +1439,90 @@ function StaysView({
     .sort((a, b) =>
       String(a.arrival_date || "").localeCompare(String(b.arrival_date || "")),
     );
+  const currentlyHosted = stays.filter(
+    (s) =>
+      !isStayArchived(s) &&
+      s.arrival_date <= today &&
+      (s.actual_departure || s.planned_departure) >= today,
+  ).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Boutique Hotel Overview Banner */}
+      <section className="bg-white rounded-2xl border border-[#E5DED2] shadow-sm overflow-hidden grid grid-cols-1 lg:grid-cols-12 items-stretch">
+        <div className="lg:col-span-7 p-4 sm:p-5 flex flex-col justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold text-amber-700 tracking-wide">
+              Vue d'ensemble · {settings.company_name || "Chat'Hotel"}
+            </p>
+            <h2 className="font-display text-lg sm:text-xl font-semibold text-[#18221D] text-balance">
+              Accueil & Suites Félines
+            </h2>
+            <p className="text-xs sm:text-[13px] text-stone-600 max-w-xl">
+              Suivez les pensionnaires présents, préparez les prochaines arrivées
+              et gérez chaque séjour en un clic.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 pt-2.5 border-t border-[#EEE8DC]">
+            <div>
+              <p className="text-[11px] text-stone-500">Présents aujourd'hui</p>
+              <p className="text-xl font-bold text-[#13382C] tabular-nums mt-0.5">
+                {currentlyHosted}
+                <span className="text-xs font-normal text-stone-400">
+                  /{totalBoxes}
+                </span>
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] text-stone-500">Arrivées à venir</p>
+              <p className="text-xl font-bold text-amber-700 tabular-nums mt-0.5">
+                {upcomingStays.length}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] text-stone-500">Séjours affichés</p>
+              <p className="text-xl font-bold text-stone-800 tabular-nums mt-0.5">
+                {filteredStays.length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-5 relative min-h-[140px] lg:max-h-[175px] bg-[#13382C]">
+          <img
+            src={SUITE_BANNER_IMAGE}
+            alt="Suites et espaces de repos de la pension Chat'Hotel"
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#13382C]/65 via-transparent to-transparent lg:bg-gradient-to-r lg:from-white/15 lg:to-transparent" />
+        </div>
+      </section>
+
       {/* Upcoming Stays Section */}
       {upcomingStays.length > 0 && (
-        <section className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="text-emerald-600" size={20} />
-            <h3 className="text-lg font-bold text-emerald-900">
-              Prochains séjours à venir
-            </h3>
+        <section className="bg-[#FBF6EB] p-4 rounded-2xl border border-[#EFE2C6]">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+                <Calendar size={15} />
+              </div>
+              <h3 className="font-display text-base font-semibold text-stone-900">
+                Prochains séjours à venir
+              </h3>
+            </div>
+            <span className="text-xs font-medium text-amber-800 tabular-nums">
+              {upcomingStays.length} réservation
+              {upcomingStays.length > 1 ? "s" : ""}
+            </span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {upcomingStays.slice(0, 6).map((stay) => (
-              <UpcomingStayCard key={stay.id} stay={stay} onClick={() => {
+              <UpcomingStayCard
+                key={stay.id}
+                stay={stay}
+                onClick={() => {
                   setFilterMonth(stay.arrival_date.substring(0, 7));
                   setSelectedStay(stay);
                   setTimeout(() => {
@@ -1248,49 +1530,50 @@ function StaysView({
                       .getElementById(`stay-card-${stay.id}`)
                       ?.scrollIntoView({ behavior: "smooth", block: "center" });
                   }, 100);
-              }} />
+                }}
+              />
             ))}
           </div>
         </section>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl border border-[#E5DED2] shadow-sm">
         <div>
-          <h2 className="text-2xl font-bold">Suivi des Séjours</h2>
-          <p className="text-sm text-stone-500">
+          <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+            Suivi des Séjours
+          </h2>
+          <p className="text-xs text-stone-500">
             {showAllActive
               ? "Affichage de tous les séjours actifs"
-              : `Affichage des séjours de ${format(new Date(filterMonth + "-01"), "MMMM yyyy", { locale: fr })}`}
+              : `Séjours de ${format(new Date(filterMonth + "-01"), "MMMM yyyy", { locale: fr })}`}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <div className="flex items-center gap-2 bg-white px-3 py-1 border border-stone-200 rounded-lg shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <label
+            htmlFor="show-all"
+            className="flex items-center gap-2 bg-[#FAF8F4] px-2.5 py-1.5 border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 cursor-pointer hover:bg-stone-100 transition-colors"
+          >
             <input
               type="checkbox"
               id="show-all"
               checked={showAllActive}
               onChange={(e) => setShowAllActive(e.target.checked)}
-              className="w-4 h-4 text-emerald-600 focus:ring-emerald-500 border-stone-300 rounded"
+              className="w-3.5 h-3.5 text-emerald-700 focus:ring-emerald-600 border-stone-300 rounded"
             />
-            <label
-              htmlFor="show-all"
-              className="text-xs font-bold text-stone-600 cursor-pointer uppercase"
-            >
-              Tout Voir
-            </label>
-          </div>
+            <span>Tout voir</span>
+          </label>
           <button
             onClick={() => {
               setFilterMonth(format(new Date(), "yyyy-MM"));
               setShowAllActive(false);
             }}
-            className="px-3 py-2 text-xs font-bold text-emerald-600 border border-emerald-200 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition-colors"
+            className="px-3 py-1.5 text-xs font-semibold text-emerald-800 border border-emerald-200 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition-colors whitespace-nowrap"
           >
             Ce mois-ci
           </button>
           <input
             type="month"
-            className={`flex-1 sm:flex-initial p-2 border border-stone-200 rounded-lg text-sm ${showAllActive ? "opacity-50 pointer-events-none" : ""}`}
+            className={`flex-1 sm:flex-initial px-2.5 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs font-medium ${showAllActive ? "opacity-50 pointer-events-none" : ""}`}
             value={filterMonth}
             onChange={(e) => setFilterMonth(e.target.value)}
           />
@@ -1308,34 +1591,37 @@ function StaysView({
                 is_forced: false,
               });
             }}
-            className="flex-1 sm:flex-initial bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors text-sm font-bold shadow-sm"
+            className="flex-1 sm:flex-initial bg-[#13382C] text-white px-3.5 py-1.5 rounded-lg flex items-center justify-center gap-1.5 hover:bg-[#0E2B22] transition-colors text-xs font-semibold shadow-sm whitespace-nowrap"
           >
-            <Plus size={18} /> Nouveau Séjour
+            <Plus size={15} /> Nouveau Séjour
           </button>
         </div>
       </div>
 
       {status && (
         <div
-          className={`p-3 rounded-lg text-sm font-bold ${status.startsWith("Erreur") ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}
+          className={`p-2.5 rounded-lg text-xs font-bold ${status.startsWith("Erreur") ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}
         >
           {status}
         </div>
       )}
 
       {isAdding && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2]">
+          <h3 className="font-display text-base font-semibold text-stone-900 mb-3">
+            Nouveau séjour
+          </h3>
           <form
             onSubmit={onFormSubmit}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-3"
           >
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-stone-500 uppercase">
+              <label className="text-[11px] font-semibold text-stone-500 uppercase">
                 Chat
               </label>
               <select
                 required
-                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                className="w-full p-2 text-sm bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none"
                 value={formData.cat_id}
                 onChange={(e) =>
                   setFormData({ ...formData, cat_id: e.target.value })
@@ -1354,7 +1640,7 @@ function StaysView({
                 Box
               </label>
               <select
-                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                className="w-full p-2.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none"
                 value={formData.box_number}
                 onChange={(e) =>
                   setFormData({
@@ -1393,7 +1679,7 @@ function StaysView({
                 />
                 <label
                   htmlFor="force-box"
-                  className="text-xs font-bold text-red-500 uppercase cursor-pointer"
+                  className="text-xs font-semibold text-rose-600 cursor-pointer"
                 >
                   Forcer l'attribution (ex: 2 chats même box)
                 </label>
@@ -1409,8 +1695,8 @@ function StaysView({
                   ),
               ) &&
                 !formData.is_forced && (
-                  <p className="text-[10px] text-red-500 font-bold mt-1">
-                    ⚠️ Aucun box libre sur cette plage horaire !
+                  <p className="text-[11px] text-rose-600 font-semibold mt-1">
+                    Aucun box libre sur cette plage horaire.
                   </p>
                 )}
             </div>
@@ -1422,7 +1708,7 @@ function StaysView({
                 <input
                   type="date"
                   required
-                  className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-2.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none tabular-nums"
                   value={formData.arrival_date || ""}
                   onChange={(e) =>
                     setFormData({ ...formData, arrival_date: e.target.value })
@@ -1435,7 +1721,7 @@ function StaysView({
                 </label>
                 <input
                   type="time"
-                  className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-2.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none tabular-nums"
                   value={formData.arrival_time || "14:00"}
                   onChange={(e) =>
                     setFormData({ ...formData, arrival_time: e.target.value })
@@ -1451,7 +1737,7 @@ function StaysView({
                 <input
                   type="date"
                   required
-                  className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-2.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none tabular-nums"
                   value={formData.planned_departure || ""}
                   onChange={(e) =>
                     setFormData({
@@ -1467,7 +1753,7 @@ function StaysView({
                 </label>
                 <input
                   type="time"
-                  className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-2.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none tabular-nums"
                   value={formData.departure_time || "11:00"}
                   onChange={(e) =>
                     setFormData({ ...formData, departure_time: e.target.value })
@@ -1480,7 +1766,7 @@ function StaysView({
                 Commentaires
               </label>
               <textarea
-                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none h-24"
+                className="w-full p-2.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-xl focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none h-24"
                 value={formData.comments || ""}
                 onChange={(e) =>
                   setFormData({ ...formData, comments: e.target.value })
@@ -1491,13 +1777,13 @@ function StaysView({
               <button
                 type="button"
                 onClick={() => setIsAdding(false)}
-                className="px-4 py-2 text-stone-500 font-medium"
+                className="px-4 py-2 text-stone-500 hover:text-stone-800 font-medium"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-medium"
+                className="bg-[#13382C] hover:bg-[#0E2B22] text-white px-6 py-2.5 rounded-xl font-semibold transition-colors"
               >
                 Enregistrer
               </button>
@@ -1506,131 +1792,151 @@ function StaysView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4">
-        {filteredStays.map((stay) => (
-          <div
-            key={stay.id}
-            id={`stay-card-${stay.id}`}
-            className={`bg-white p-5 rounded-2xl shadow-sm border transition-all ${selectedStay?.id === stay.id ? "border-emerald-500 ring-1 ring-emerald-500" : "border-stone-200"}`}
-          >
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center font-bold">
-                  {stay.box_number}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-lg">{stay.cat_name}</h3>
-                    {(stay.actual_departure || stay.planned_departure) <
-                      today && (
-                      <span className="text-[10px] bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded font-bold uppercase">
-                        Terminé
-                      </span>
-                    )}
-                    <span className="text-[10px] bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded font-bold uppercase">
-                      ID: {stay.id}
-                    </span>
-                    <span className="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold uppercase">
-                      {stay.cat_species}
-                    </span>
-                    {(stay.cat_age || stay.cat_birth_date) && (
-                      <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded font-bold uppercase">
-                        {stay.cat_age ||
-                          calculateAge(stay.cat_birth_date || "")}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-stone-500 text-sm">
-                    Propriétaire: {stay.owner_name}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="text-right">
-                  <p className="text-[10px] uppercase font-bold text-stone-400">
-                    Période
-                  </p>
-                  <p className="text-sm font-medium">
-                    {stay.arrival_date}{" "}
-                    <span className="text-stone-300">
-                      ({stay.arrival_time || "14:00"})
-                    </span>
-                    &nbsp;→&nbsp;
-                    {stay.actual_departure || stay.planned_departure}{" "}
-                    <span className="text-stone-300">
-                      ({stay.departure_time || "11:00"})
-                    </span>
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() =>
-                      setSelectedStay(
-                        selectedStay?.id === stay.id ? null : stay,
-                      )
-                    }
-                    className="bg-stone-100 text-stone-600 px-4 py-2 rounded-lg font-medium hover:bg-stone-200 transition-colors"
-                  >
-                    {selectedStay?.id === stay.id ? "Fermer" : "Gérer"}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(stay.id)}
-                    className="p-2 text-red-300 hover:text-red-600 transition-colors"
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
+      <div className="grid grid-cols-1 gap-3">
+        {filteredStays.map((stay) => {
+          const isFinished =
+            (stay.actual_departure || stay.planned_departure) < today;
+          const ageDisplay =
+            stay.cat_age ||
+            (stay.cat_birth_date ? calculateAge(stay.cat_birth_date) : "");
 
-            {selectedStay?.id === stay.id && (
-              <div className="mt-6 pt-6 border-t border-stone-100 grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <HealthSection
-                  stay={stay}
-                  onUpdate={onUpdate}
-                  showToast={showToast}
-                  askConfirm={askConfirm}
-                />
-                <MediaSection
-                  stay={stay}
-                  showToast={showToast}
-                  askConfirm={askConfirm}
-                />
-                <InvoiceSection
-                  stay={stay}
-                  settings={settings}
-                  showToast={showToast}
-                  askConfirm={askConfirm}
-                  onUpdate={onUpdate}
-                />
-                <StayDetailsSection
-                  stay={stay}
-                  onUpdate={onUpdate}
-                  settings={settings}
-                  stays={stays}
-                  showToast={showToast}
-                  askConfirm={askConfirm}
-                />
+          return (
+            <div
+              key={stay.id}
+              id={`stay-card-${stay.id}`}
+              className={`bg-white p-4 rounded-2xl border transition-all duration-150 ${selectedStay?.id === stay.id ? "border-emerald-700 ring-2 ring-emerald-700/15 shadow-md" : "border-[#E5DED2] shadow-sm hover:border-stone-300"}`}
+            >
+              <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-10 h-10 rounded-xl border flex flex-col items-center justify-center shrink-0 font-mono ${getBoxBadgeClasses(stay.box_number)}`}
+                  >
+                    <span className="text-[8px] uppercase font-semibold leading-none opacity-75">
+                      Box
+                    </span>
+                    <span className="text-sm font-bold leading-tight tabular-nums">
+                      {stay.box_number}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <h3 className="font-display font-semibold text-base text-stone-900">
+                        {stay.cat_name}
+                      </h3>
+                      {isFinished && (
+                        <span className="text-[11px] font-medium text-stone-400">
+                          · Séjour terminé
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-stone-500 text-xs truncate">
+                      {stay.owner_name}
+                      {stay.cat_species ? ` · ${stay.cat_species}` : ""}
+                      {ageDisplay ? ` · ${ageDisplay}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between md:justify-end gap-4">
+                  <div className="md:text-right tabular-nums">
+                    <p className="text-[10px] font-medium text-stone-400">
+                      Période du séjour
+                    </p>
+                    <p className="text-[13px] font-semibold text-stone-800">
+                      {formatDateSafe(stay.arrival_date)}{" "}
+                      <span className="text-stone-400 font-normal text-[11px]">
+                        ({stay.arrival_time || "14:00"})
+                      </span>
+                      <span className="mx-1 text-emerald-700">→</span>
+                      {formatDateSafe(
+                        stay.actual_departure || stay.planned_departure,
+                      )}{" "}
+                      <span className="text-stone-400 font-normal text-[11px]">
+                        ({stay.departure_time || "11:00"})
+                      </span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() =>
+                        setSelectedStay(
+                          selectedStay?.id === stay.id ? null : stay,
+                        )
+                      }
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                        selectedStay?.id === stay.id
+                          ? "bg-[#13382C] text-white"
+                          : "bg-[#F4F0E8] text-stone-800 hover:bg-[#EAE3D5]"
+                      }`}
+                    >
+                      {selectedStay?.id === stay.id ? "Fermer" : "Gérer"}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(stay.id)}
+                      className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Supprimer le séjour"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-        ))}
+
+              {selectedStay?.id === stay.id && (
+                <div className="mt-4 pt-4 border-t border-[#EEE8DC] grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <HealthSection
+                    stay={stay}
+                    onUpdate={onUpdate}
+                    showToast={showToast}
+                    askConfirm={askConfirm}
+                  />
+                  <MediaSection
+                    stay={stay}
+                    showToast={showToast}
+                    askConfirm={askConfirm}
+                  />
+                  <InvoiceSection
+                    stay={stay}
+                    settings={settings}
+                    showToast={showToast}
+                    askConfirm={askConfirm}
+                    onUpdate={onUpdate}
+                  />
+                  <StayDetailsSection
+                    stay={stay}
+                    onUpdate={onUpdate}
+                    settings={settings}
+                    stays={stays}
+                    showToast={showToast}
+                    askConfirm={askConfirm}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
         {filteredStays.length === 0 && (
-          <div className="bg-white p-12 rounded-2xl border border-stone-200 border-dashed text-center">
-            <p className="text-stone-500 mb-4">
-              Aucun séjour trouvé pour cette période.
-            </p>
-            <div className="flex justify-center gap-3">
+          <div className="bg-white p-8 rounded-2xl border border-[#E5DED2] border-dashed text-center space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-[#EFF4F0] text-emerald-800 flex items-center justify-center mx-auto">
+              <Calendar size={18} />
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-stone-800">
+                Aucun séjour trouvé pour cette période
+              </p>
+              <p className="text-xs text-stone-500 mt-0.5">
+                Changez de mois ou affichez tous les séjours actifs.
+              </p>
+            </div>
+            <div className="flex justify-center gap-2.5">
               <button
                 onClick={() => setShowAllActive(true)}
-                className="text-stone-600 font-bold text-xs uppercase hover:text-emerald-600 transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-[#F4F0E8] text-stone-700 font-semibold text-xs hover:bg-[#EAE3D5] transition-colors"
               >
                 Tout voir
               </button>
-              <span className="text-stone-300">|</span>
               <button
                 onClick={() => setFilterMonth(format(new Date(), "yyyy-MM"))}
-                className="text-stone-600 font-bold text-xs uppercase hover:text-emerald-600 transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 font-semibold text-xs hover:bg-emerald-100 transition-colors"
               >
                 Mois actuel
               </button>
@@ -3357,16 +3663,30 @@ function ClientsView({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">Gestion des Clients</h2>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl border border-[#E5DED2] shadow-sm">
+        <div>
+          <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+            Gestion des Clients
+          </h2>
+          <p className="text-[11px] text-stone-500 mt-0.5 tabular-nums">
+            {clients.length} propriétaire{clients.length > 1 ? "s" : ""} enregistré
+            {clients.length > 1 ? "s" : ""}
+          </p>
+        </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <input
-            placeholder="Rechercher un client..."
-            className="p-2 border border-stone-200 rounded-lg text-sm w-full sm:w-48"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="relative flex-1 sm:flex-initial">
+            <Search
+              size={14}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400"
+            />
+            <input
+              placeholder="Rechercher un client..."
+              className="pl-8 pr-3 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs w-full sm:w-52 outline-none focus:bg-white focus:border-emerald-600"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           <button
             onClick={() => {
               setIsAdding(true);
@@ -3382,26 +3702,26 @@ function ClientsView({
                 contact2_address: "",
               });
             }}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors text-sm font-bold"
+            className="bg-[#13382C] text-white px-3.5 py-1.5 rounded-lg flex items-center justify-center gap-1.5 hover:bg-[#0E2B22] transition-colors text-xs font-semibold whitespace-nowrap"
           >
-            <Plus size={18} /> Nouveau Client
+            <Plus size={15} /> Nouveau Client
           </button>
         </div>
       </div>
 
       {status && (
         <div
-          className={`p-3 rounded-lg text-sm font-bold ${status.startsWith("Erreur") ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}
+          className={`p-2.5 rounded-lg text-xs font-bold ${status.startsWith("Erreur") ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}
         >
           {status}
         </div>
       )}
 
       {(isAdding || editingClient) && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-stone-200">
           <form
             onSubmit={onFormSubmit}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-3"
           >
             <div className="space-y-1">
               <label className="text-xs font-semibold text-stone-500 uppercase">
@@ -3535,60 +3855,95 @@ function ClientsView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredClients.map((client) => (
-          <div
-            key={client.id}
-            className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200 group"
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="font-bold text-lg">{client.name}</h3>
-                <p className="text-stone-500 text-sm">{client.email}</p>
-              </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => {
-                    setEditingClient(client);
-                    setFormData({
-                      name: client.name || "",
-                      address: client.address || "",
-                      email: client.email || "",
-                      phone: client.phone || "",
-                      contact2_name: client.contact2_name || "",
-                      contact2_phone: client.contact2_phone || "",
-                      contact2_email: client.contact2_email || "",
-                      contact2_address: client.contact2_address || "",
-                    });
-                  }}
-                  className="p-2 text-stone-400 hover:text-emerald-600"
-                >
-                  <Edit size={18} />
-                </button>
-                <button
-                  onClick={() => handleDelete(client.id)}
-                  className="p-2 text-stone-400 hover:text-red-600"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </div>
-            <div className="space-y-2 text-sm text-stone-600 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-stone-400">Tél:</span> {client.phone}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-stone-400">Adr:</span> {client.address}
-              </div>
-            </div>
-            <button
-              onClick={() => setSelectedClient(client)}
-              className="w-full bg-stone-50 text-emerald-700 py-2 rounded-xl text-sm font-bold border border-emerald-100 hover:bg-emerald-50 transition-colors"
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        {filteredClients.map((client) => {
+          const initials = (client.name || "C")
+            .split(" ")
+            .map((p) => p[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase();
+          const clientCatsCount = cats.filter(
+            (c) => c.owner_id === client.id,
+          ).length;
+
+          return (
+            <div
+              key={client.id}
+              className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2] hover:border-emerald-400 transition-all duration-150 group flex flex-col justify-between"
             >
-              Ouvrir la fiche client
-            </button>
-          </div>
-        ))}
+              <div>
+                <div className="flex justify-between items-start mb-3 gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-semibold text-xs shrink-0 ${getMonogramClasses(client.name)}`}
+                    >
+                      {initials}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-[15px] text-stone-900 truncate">
+                        {client.name}
+                      </h3>
+                      <p className="text-stone-500 text-[11px] truncate">
+                        {client.email || "Aucun e-mail"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity shrink-0">
+                    <button
+                      onClick={() => {
+                        setEditingClient(client);
+                        setFormData({
+                          name: client.name || "",
+                          address: client.address || "",
+                          email: client.email || "",
+                          phone: client.phone || "",
+                          contact2_name: client.contact2_name || "",
+                          contact2_phone: client.contact2_phone || "",
+                          contact2_email: client.contact2_email || "",
+                          contact2_address: client.contact2_address || "",
+                        });
+                      }}
+                      className="p-1.5 text-stone-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Modifier"
+                    >
+                      <Edit size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(client.id)}
+                      className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Supprimer"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1 text-xs text-stone-600 mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <Phone size={12} className="text-stone-400 shrink-0" />
+                    <span className="tabular-nums">{client.phone || "-"}</span>
+                  </div>
+                  <div className="flex items-start gap-1.5">
+                    <MapPin
+                      size={12}
+                      className="text-stone-400 shrink-0 mt-0.5"
+                    />
+                    <span className="line-clamp-2">{client.address || "-"}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedClient(client)}
+                className="w-full bg-[#F4F0E8] text-[#13382C] py-2 px-3 rounded-lg text-xs font-semibold hover:bg-[#13382C] hover:text-white transition-colors flex items-center justify-between"
+              >
+                <span>Ouvrir la fiche client</span>
+                <span className="font-mono opacity-75 tabular-nums">
+                  {clientCatsCount} animal{clientCatsCount > 1 ? "ux" : ""}
+                </span>
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -3781,50 +4136,61 @@ function ClientDashboard({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-stone-500 hover:text-stone-800 transition-colors"
+        className="flex items-center gap-1.5 text-stone-600 hover:text-[#13382C] font-medium text-xs transition-colors"
       >
-        <ChevronLeft size={20} /> Retour aux clients
+        <ChevronLeft size={16} /> Retour aux clients
       </button>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-        <div className="flex justify-between items-start">
-          <div>
-            <h2 className="text-2xl font-bold">{client.name}</h2>
-            <p className="text-stone-500">
-              {client.email} • {client.phone}
-            </p>
-            <p className="text-stone-500 text-sm">{client.address}</p>
-            {client.contact2_name && (
-              <div className="mt-4 p-3 bg-stone-50 rounded-lg border border-stone-100">
-                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
-                  Contact de confiance
-                </span>
-                <p className="text-sm font-semibold text-stone-700">
-                  {client.contact2_name}
-                </p>
-                <p className="text-xs text-stone-500">
-                  {[client.contact2_phone, client.contact2_email]
-                    .filter(Boolean)
-                    .join(" • ")}
-                </p>
-              </div>
-            )}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2]">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+          <div className="flex items-start gap-3">
+            <div
+              className={`w-10 h-10 rounded-xl border flex items-center justify-center font-display font-semibold text-base shrink-0 ${getMonogramClasses(client.name)}`}
+            >
+              {client.name?.charAt(0).toUpperCase() || "C"}
+            </div>
+            <div>
+              <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+                {client.name}
+              </h2>
+              <p className="text-stone-500 text-xs tabular-nums">
+                {[client.email, client.phone].filter(Boolean).join(" · ")}
+              </p>
+              {client.address && (
+                <p className="text-stone-500 text-xs mt-0.5">{client.address}</p>
+              )}
+              {client.contact2_name && (
+                <div className="mt-3 p-2.5 bg-[#FAF8F4] rounded-xl border border-[#EDE6DA]">
+                  <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider block mb-0.5">
+                    Contact de confiance
+                  </span>
+                  <p className="text-xs font-semibold text-stone-800">
+                    {client.contact2_name}
+                  </p>
+                  <p className="text-[11px] text-stone-500 tabular-nums">
+                    {[client.contact2_phone, client.contact2_email]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <button
               onClick={() => setActiveMenu("add_cat")}
-              className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-200"
+              className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-lg font-semibold text-xs hover:bg-emerald-100 transition-colors"
             >
-              <Plus size={16} className="inline mr-1" /> Animal
+              <Plus size={14} className="inline mr-1" /> Animal
             </button>
             <button
               onClick={() => setActiveMenu("add_stay")}
-              className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-700"
+              className="bg-[#13382C] text-white px-3 py-1.5 rounded-lg font-semibold text-xs hover:bg-[#0E2B22] transition-colors"
             >
-              <Plus size={16} className="inline mr-1" /> Séjour
+              <Plus size={14} className="inline mr-1" /> Séjour
             </button>
           </div>
         </div>
@@ -4103,16 +4469,16 @@ function ClientDashboard({
       )}
 
       {activeMenu === "overview" && (
-        <div className="space-y-4">
-          <h3 className="font-bold text-lg">
+        <div className="space-y-3">
+          <h3 className="font-display font-semibold text-base text-stone-900">
             Animaux rattachés ({clientCats.length})
           </h3>
           {clientCats.length === 0 && (
-            <p className="text-stone-500 text-sm">
+            <p className="text-stone-500 text-xs">
               Ce client n'a aucun animal enregistré.
             </p>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {clientCats.map((cat) => {
               const catStays = stays
                 .filter((s) => s.cat_id === cat.id)
@@ -4124,71 +4490,80 @@ function ClientDashboard({
               return (
                 <div
                   key={cat.id}
-                  className="bg-white p-5 rounded-xl shadow-sm border border-stone-200 group flex flex-col"
+                  className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2] group flex flex-col hover:border-stone-300 transition-colors"
                 >
                   <div className="flex-1">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-lg text-stone-900 flex items-center gap-2">
-                        {cat.name}{" "}
-                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold uppercase">
-                          {cat.species}
-                        </span>
-                      </h4>
+                    <div className="flex justify-between items-start mb-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className={`w-8 h-8 rounded-lg border flex items-center justify-center font-display font-semibold text-sm shrink-0 ${getMonogramClasses(cat.name)}`}
+                        >
+                          {cat.name?.charAt(0).toUpperCase() || "A"}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-display font-semibold text-base text-stone-900 truncate">
+                            {cat.name}
+                          </h4>
+                          <p className="text-[11px] text-stone-500">{cat.species}</p>
+                        </div>
+                      </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => handleEditCatClick(cat)}
-                          className="p-1 text-stone-400 hover:text-emerald-600"
+                          className="p-1.5 text-stone-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
                         >
-                          <Edit size={16} />
+                          <Edit size={14} />
                         </button>
                         <button
                           onClick={() => handleDeleteCatClick(cat.id)}
-                          className="p-1 text-stone-400 hover:text-red-600"
+                          className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
-                    <div className="text-xs text-stone-500 grid grid-cols-2 gap-2 mb-4">
+                    <div className="text-xs text-stone-500 grid grid-cols-2 gap-2 mb-3">
                       <div>
-                        <span className="font-bold block uppercase text-[10px]">
+                        <span className="font-semibold block uppercase text-[10px] text-stone-400">
                           Race
-                        </span>{" "}
-                        {cat.breed || "-"}
+                        </span>
+                        <span className="text-stone-700 font-medium">{cat.breed || "-"}</span>
                       </div>
                       <div>
-                        <span className="font-bold block uppercase text-[10px]">
+                        <span className="font-semibold block uppercase text-[10px] text-stone-400">
                           Puce
-                        </span>{" "}
-                        {cat.chip_number || "-"}
+                        </span>
+                        <span className="text-stone-700 font-medium tabular-nums">{cat.chip_number || "-"}</span>
                       </div>
                       <div className="col-span-2">
-                        <span className="font-bold block uppercase text-[10px]">
-                          Age
-                        </span>{" "}
-                        {cat.age ||
-                          (cat.birth_date ? calculateAge(cat.birth_date) : "-")}
+                        <span className="font-semibold block uppercase text-[10px] text-stone-400">
+                          Âge
+                        </span>
+                        <span className="text-stone-700 font-medium">
+                          {cat.age ||
+                            (cat.birth_date ? calculateAge(cat.birth_date) : "-")}
+                        </span>
                       </div>
                       {cat.comments && (
-                        <div className="col-span-2 pt-2 border-t border-stone-100">
-                          <span className="font-bold block uppercase text-[10px] mb-1">
+                        <div className="col-span-2 pt-2 border-t border-[#F0E9DC]">
+                          <span className="font-semibold block uppercase text-[10px] text-stone-400 mb-1">
                             Commentaires
                           </span>
-                          <p className="text-xs text-stone-600 bg-stone-50 p-2 rounded-lg border border-stone-100 whitespace-pre-wrap break-words">
+                          <p className="text-xs text-stone-700 bg-[#FAF8F4] p-2 rounded-lg border border-[#EDE6DA] whitespace-pre-wrap break-words">
                             {cat.comments}
                           </p>
                         </div>
                       )}
                     </div>
                     {catStays.length > 0 && (
-                      <div className="mb-4 space-y-2">
-                        <p className="text-[10px] uppercase font-bold text-stone-400">
+                      <div className="mb-3 space-y-1.5">
+                        <p className="text-[10px] uppercase font-semibold text-stone-400 tracking-wide">
                           Derniers Séjours
                         </p>
                         {catStays.slice(0, 3).map((cs) => (
                           <div
                             key={cs.id}
-                            className="text-xs flex justify-between bg-stone-50 p-2 rounded-lg border border-stone-100"
+                            className="text-[11px] flex justify-between bg-[#FAF8F4] p-1.5 rounded-lg border border-[#EDE6DA] tabular-nums"
                           >
                             <span>
                               {formatDateSafe(cs.arrival_date)} →{" "}
@@ -4196,7 +4571,7 @@ function ClientDashboard({
                                 cs.actual_departure || cs.planned_departure,
                               )}
                             </span>
-                            <span className="font-bold text-emerald-700">
+                            <span className="font-semibold text-emerald-800">
                               Box {cs.box_number}{" "}
                               {(cs.actual_departure || cs.planned_departure) <
                                 new Date().toISOString().split("T")[0] &&
@@ -4212,9 +4587,9 @@ function ClientDashboard({
                       setStayFormData((s) => ({ ...s, cat_id: cat.id }));
                       setActiveMenu("add_stay");
                     }}
-                    className="w-full bg-stone-100 py-2 rounded-lg text-sm font-bold text-stone-700 hover:bg-stone-200 transition-colors mt-auto"
+                    className="w-full bg-[#F4F0E8] py-2 rounded-lg text-xs font-semibold text-stone-800 hover:bg-[#EAE3D5] transition-colors mt-auto"
                   >
-                    <Plus size={14} className="inline mr-1" /> Nouveau séjour
+                    <Plus size={13} className="inline mr-1" /> Nouveau séjour
                     pour {cat.name}
                   </button>
                 </div>
@@ -4335,16 +4710,30 @@ function CatsView({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">Registre des Animaux</h2>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl border border-[#E5DED2] shadow-sm">
+        <div>
+          <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+            Registre des Animaux
+          </h2>
+          <p className="text-[11px] text-stone-500 mt-0.5 tabular-nums">
+            {cats.length} pensionnaire{cats.length > 1 ? "s" : ""} enregistré
+            {cats.length > 1 ? "s" : ""}
+          </p>
+        </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <input
-            placeholder="Rechercher un animal..."
-            className="p-2 border border-stone-200 rounded-lg text-sm w-full sm:w-48"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="relative flex-1 sm:flex-initial">
+            <Search
+              size={14}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400"
+            />
+            <input
+              placeholder="Nom, maître, puce, note..."
+              className="pl-8 pr-3 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs w-full sm:w-52 outline-none focus:bg-white focus:border-emerald-600"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           <button
             onClick={() => {
               setIsAdding(true);
@@ -4364,26 +4753,26 @@ function CatsView({
                 comments: "",
               });
             }}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors text-sm font-bold"
+            className="bg-[#13382C] text-white px-3.5 py-1.5 rounded-lg flex items-center justify-center gap-1.5 hover:bg-[#0E2B22] transition-colors text-xs font-semibold whitespace-nowrap"
           >
-            <Plus size={18} /> Nouveau
+            <Plus size={15} /> Nouvel Animal
           </button>
         </div>
       </div>
 
       {status && (
         <div
-          className={`p-3 rounded-lg text-sm font-bold ${status.startsWith("Erreur") ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}
+          className={`p-2.5 rounded-lg text-xs font-bold ${status.startsWith("Erreur") ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}
         >
           {status}
         </div>
       )}
 
       {(isAdding || editingCat) && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-stone-200">
           <form
             onSubmit={onFormSubmit}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-3"
           >
             {!editingCat && (
               <div className="space-y-1">
@@ -4582,30 +4971,32 @@ function CatsView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {filteredCats.map((cat) => (
           <div
             key={cat.id}
-            className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200 group"
+            className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2] hover:border-emerald-400 transition-all duration-150 group"
           >
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center text-stone-400">
-                  <CatIcon size={24} />
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${getMonogramClasses(cat.name)}`}
+                >
+                  <CatIcon size={18} />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-lg">{cat.name}</h3>
-                    <span className="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold uppercase">
-                      {cat.species}
+                <div className="min-w-0">
+                  <h3 className="font-display font-semibold text-base text-stone-900 truncate">
+                    {cat.name}
+                  </h3>
+                  <p className="text-[11px] text-stone-500 truncate">
+                    <span className="font-semibold text-emerald-800">
+                      {cat.owner_name}
                     </span>
-                  </div>
-                  <p className="text-emerald-600 text-xs font-semibold uppercase tracking-wider">
-                    {cat.owner_name}
+                    {cat.species ? ` · ${cat.species}` : ""}
                   </p>
                 </div>
               </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity shrink-0">
                 <button
                   onClick={() => {
                     setEditingCat(cat);
@@ -4624,20 +5015,23 @@ function CatsView({
                       age: cat.age || "",
                       comments: cat.comments || "",
                     });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
-                  className="p-2 text-stone-400 hover:text-emerald-600"
+                  className="p-1.5 text-stone-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                  title="Modifier"
                 >
-                  <Edit size={18} />
+                  <Edit size={15} />
                 </button>
                 <button
                   onClick={() => handleDelete(cat.id)}
-                  className="p-2 text-stone-300 hover:text-red-600"
+                  className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Supprimer"
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={15} />
                 </button>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs mt-2.5">
               <div className="col-span-2">
                 <span className="text-stone-400 block text-[10px] uppercase font-bold">
                   Age
@@ -4670,7 +5064,7 @@ function CatsView({
                 <span className="text-stone-400 block text-[10px] uppercase font-bold mb-1">
                   Santé
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
                   <div>
                     <span className="text-stone-500">Vaccins TC:</span>{" "}
                     {formatDateSafe(cat.vaccine_tc_date)}
@@ -4691,11 +5085,11 @@ function CatsView({
                   Commentaires
                 </span>
                 {cat.comments ? (
-                  <p className="text-xs text-stone-700 bg-stone-50 p-2.5 rounded-lg border border-stone-100 whitespace-pre-wrap break-words">
+                  <p className="text-[11px] text-stone-700 bg-stone-50 p-2 rounded-lg border border-stone-100 whitespace-pre-wrap break-words">
                     {cat.comments}
                   </p>
                 ) : (
-                  <span className="text-xs text-stone-400 italic">
+                  <span className="text-[11px] text-stone-400 italic">
                     Aucun commentaire
                   </span>
                 )}
@@ -4901,26 +5295,31 @@ function SettingsView({
   };
 
   return (
-    <div className="max-w-2xl space-y-8">
-      <h2 className="text-2xl font-bold">Configuration</h2>
+    <div className="max-w-3xl space-y-4">
+      <div className="bg-white p-4 rounded-2xl border border-[#E5DED2] shadow-sm">
+        <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+          Configuration
+        </h2>
+        <p className="text-[11px] text-stone-500 mt-0.5">
+          Personnalisez l'identité, les tarifs par défaut et les conditions de
+          votre établissement.
+        </p>
+      </div>
 
-      <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold flex items-center gap-2">
-            <SettingsIcon size={20} className="text-emerald-600" /> Informations
+      <section className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2] space-y-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-semibold text-sm flex items-center gap-2 text-stone-900">
+            <SettingsIcon size={16} className="text-emerald-700" /> Informations
             de l'entreprise
           </h3>
-          <div className="flex items-center gap-4">
-            {settings.logo && (
-              <img
-                src={settings.logo}
-                alt="Logo"
-                className="h-12 w-auto object-contain rounded border border-stone-100"
-                referrerPolicy="no-referrer"
-              />
-            )}
+          <div className="flex items-center gap-2.5">
+            <BrandLogo
+              logoUrl={settings.logo}
+              sizeClass="h-10 w-10"
+              roundedClass="rounded-xl border border-[#E5DED2]"
+            />
             <div className="relative overflow-hidden group">
-              <div className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold text-xs group-hover:bg-emerald-700 transition-colors flex items-center justify-center">
+              <div className="bg-[#13382C] text-white px-3 py-1.5 rounded-lg font-semibold text-xs group-hover:bg-[#0E2B22] transition-colors flex items-center justify-center whitespace-nowrap">
                 Changer le logo
               </div>
               <input
@@ -4941,7 +5340,7 @@ function SettingsView({
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-stone-500 uppercase">
               Nom de l'entreprise
@@ -5061,50 +5460,50 @@ function SettingsView({
         </div>
         <button
           onClick={handleSaveCompanyInfo}
-          className="bg-stone-800 text-white px-4 py-2 rounded-lg text-sm font-bold mt-2"
+          className="bg-[#13382C] hover:bg-[#0E2B22] text-white px-4 py-2 rounded-lg text-xs font-semibold mt-1 transition-colors"
         >
           Enregistrer les informations
         </button>
       </section>
 
-      <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 space-y-4">
-        <h3 className="font-bold flex items-center gap-2">
-          <SettingsIcon size={20} className="text-emerald-600" /> Paramètres de
+      <section className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2] space-y-3.5">
+        <h3 className="font-semibold text-sm flex items-center gap-2 text-stone-900">
+          <SettingsIcon size={16} className="text-emerald-700" /> Paramètres de
           la pension
         </h3>
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-3.5 text-sm">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-stone-500 uppercase">
+            <label className="text-[11px] font-semibold text-stone-500 uppercase">
               Nombre total de box
             </label>
             <div className="flex gap-2">
               <input
                 type="number"
-                className="w-24 p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                className="w-24 p-2 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none tabular-nums"
                 value={totalBoxes || ""}
                 onChange={(e) => setTotalBoxes(e.target.value)}
               />
               <button
                 onClick={() => handleSaveSetting("total_boxes", totalBoxes)}
-                className="bg-stone-800 text-white px-4 py-2 rounded-lg text-sm font-bold"
+                className="bg-[#13382C] hover:bg-[#0E2B22] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
               >
                 Enregistrer
               </button>
             </div>
-            <p className="text-xs text-stone-400">
+            <p className="text-[11px] text-stone-400">
               Définit le nombre de box disponibles dans les menus déroulants et
               les statistiques.
             </p>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-stone-500 uppercase">
+            <label className="text-[11px] font-semibold text-stone-500 uppercase">
               Pourcentage d'acompte par défaut (%)
             </label>
             <div className="flex gap-2">
               <input
                 type="number"
-                className="w-24 p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                className="w-24 p-2 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none tabular-nums"
                 value={defaultDownPayment || ""}
                 onChange={(e) => setDefaultDownPayment(e.target.value)}
               />
@@ -5115,24 +5514,24 @@ function SettingsView({
                     defaultDownPayment,
                   )
                 }
-                className="bg-stone-800 text-white px-4 py-2 rounded-lg text-sm font-bold"
+                className="bg-[#13382C] hover:bg-[#0E2B22] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
               >
                 Enregistrer
               </button>
             </div>
-            <p className="text-xs text-stone-400">
+            <p className="text-[11px] text-stone-400">
               Pourcentage calculé par défaut pour les acomptes dans la gestion
               des factures.
             </p>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-stone-500 uppercase">
+            <label className="text-[11px] font-semibold text-stone-500 uppercase">
               Conditions Générales (Contrat)
             </label>
             <div className="flex flex-col gap-2">
               <textarea
-                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none h-32 resize-y"
+                className="w-full p-2.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none h-28 resize-y text-sm"
                 value={generalConditions}
                 onChange={(e) => setGeneralConditions(e.target.value)}
                 placeholder="Saisissez ici les conditions générales qui apparaîtront sur les contrats..."
@@ -5141,7 +5540,7 @@ function SettingsView({
                 onClick={() =>
                   handleSaveSetting("general_conditions", generalConditions)
                 }
-                className="bg-stone-800 text-white px-4 py-2 rounded-lg text-sm font-bold self-start"
+                className="bg-[#13382C] hover:bg-[#0E2B22] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold self-start transition-colors"
               >
                 Enregistrer les conditions
               </button>
@@ -5149,16 +5548,16 @@ function SettingsView({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-stone-500 uppercase">
+            <label className="text-[11px] font-semibold text-stone-500 uppercase">
               État de santé de l'animal (à cocher dans le contrat)
             </label>
-            <p className="text-xs text-stone-400">
+            <p className="text-[11px] text-stone-400">
               Saisissez un élément par ligne. Ces options seront ajoutées en bas
               du contrat pour signature.
             </p>
-            <div className="flex flex-col gap-2 mt-2">
+            <div className="flex flex-col gap-2 mt-1.5">
               <textarea
-                className="w-full p-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none h-24 resize-y"
+                className="w-full p-2.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none h-24 resize-y text-sm"
                 value={healthConditions}
                 onChange={(e) => setHealthConditions(e.target.value)}
                 placeholder="Nez qui coule&#10;Yeux qui pleurent&#10;..."
@@ -5167,7 +5566,7 @@ function SettingsView({
                 onClick={() =>
                   handleSaveSetting("health_conditions", healthConditions)
                 }
-                className="bg-stone-800 text-white px-4 py-2 rounded-lg text-sm font-bold self-start mt-1"
+                className="bg-[#13382C] hover:bg-[#0E2B22] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold self-start mt-1 transition-colors"
               >
                 Enregistrer la liste de santé
               </button>
@@ -5176,26 +5575,26 @@ function SettingsView({
         </div>
       </section>
 
-      <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 space-y-4">
-        <h3 className="font-bold flex items-center gap-2">
-          <CreditCard size={20} className="text-emerald-600" /> Modes de
+      <section className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2] space-y-3.5">
+        <h3 className="font-semibold text-sm flex items-center gap-2 text-stone-900">
+          <CreditCard size={16} className="text-emerald-700" /> Modes de
           Paiement
         </h3>
         <div className="flex flex-wrap gap-2">
           {paymentMethods.map((m) => (
             <div
               key={m}
-              className="flex items-center gap-2 bg-stone-50 border border-stone-200 px-3 py-1.5 rounded-xl"
+              className="flex items-center gap-2 bg-[#FAF8F4] border border-[#E4DDD1] px-2.5 py-1 rounded-lg"
             >
-              <span className="text-sm font-medium text-stone-600">{m}</span>
+              <span className="text-xs font-medium text-stone-700">{m}</span>
               <button
                 onClick={() => {
                   const updated = paymentMethods.filter((p) => p !== m);
                   handleSaveSetting("payment_methods", JSON.stringify(updated));
                 }}
-                className="text-stone-300 hover:text-red-500 transition-colors"
+                className="text-stone-400 hover:text-rose-600 transition-colors"
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             </div>
           ))}
@@ -5203,7 +5602,7 @@ function SettingsView({
         <div className="flex gap-2">
           <input
             placeholder="Ajouter un mode (ex: PayPal)"
-            className="flex-1 p-2 border border-stone-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+            className="flex-1 p-2 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none"
             value={newPaymentMethod}
             onChange={(e) => setNewPaymentMethod(e.target.value)}
             onKeyDown={(e) => {
@@ -5222,20 +5621,20 @@ function SettingsView({
                 setNewPaymentMethod("");
               }
             }}
-            className="bg-stone-800 text-white px-4 py-2 rounded-xl text-xs font-bold"
+            className="bg-[#13382C] hover:bg-[#0E2B22] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
           >
             Ajouter
           </button>
         </div>
-        <p className="text-xs text-stone-400 italic">
+        <p className="text-[11px] text-stone-400 italic">
           Ces modes apparaîtront lors de la création d'une facture.
         </p>
       </section>
 
-      <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 space-y-4">
+      <section className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2] space-y-3.5">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold flex items-center gap-2">
-            <CheckCircle2 size={20} className="text-emerald-600" /> Libellés des
+          <h3 className="font-semibold text-sm flex items-center gap-2 text-stone-900">
+            <CheckCircle2 size={16} className="text-emerald-700" /> Libellés des
             Statuts
           </h3>
           <button
@@ -5245,27 +5644,27 @@ function SettingsView({
                 JSON.stringify(tempStatuses),
               )
             }
-            className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-emerald-700 transition-all"
+            className="bg-[#13382C] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm hover:bg-[#0E2B22] transition-colors"
           >
             Enregistrer les libellés
           </button>
         </div>
-        <p className="text-xs text-stone-400">
+        <p className="text-[11px] text-stone-400">
           Personnalisez les noms des statuts de vos factures.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
           {Object.entries(tempStatuses).map(([key, config]: [string, any]) => (
             <div
               key={key}
-              className="flex flex-col gap-1 p-3 bg-stone-50 rounded-xl border border-stone-100"
+              className="flex flex-col gap-1 p-2.5 bg-[#FAF8F4] rounded-xl border border-[#EDE6DA]"
             >
-              <label className="text-[10px] font-bold text-stone-400 uppercase">
+              <label className="text-[10px] font-semibold text-stone-400 uppercase">
                 Clé : {key}
               </label>
               <input
                 type="text"
-                className={`w-full p-2 border border-stone-200 rounded-lg text-sm font-bold bg-white focus:ring-2 focus:ring-emerald-500 outline-none ${config.color}`}
+                className={`w-full p-1.5 border border-[#E4DDD1] rounded-lg text-xs font-semibold bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 outline-none ${config.color}`}
                 value={config.label}
                 onChange={(e) => {
                   setTempStatuses({
@@ -5279,43 +5678,43 @@ function SettingsView({
         </div>
       </section>
 
-      <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 space-y-6">
-        <h3 className="font-bold flex items-center gap-2">
-          <Save size={20} className="text-emerald-600" /> Sauvegarde &
+      <section className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2] space-y-4">
+        <h3 className="font-semibold text-sm flex items-center gap-2 text-stone-900">
+          <Save size={16} className="text-emerald-700" /> Sauvegarde &
           Restauration
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
-            <h4 className="font-bold text-sm">Exporter les données</h4>
-            <p className="text-xs text-stone-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <div className="p-3.5 bg-[#FAF8F4] rounded-xl border border-[#EDE6DA] space-y-2.5">
+            <h4 className="font-semibold text-xs text-stone-900">Exporter les données</h4>
+            <p className="text-[11px] text-stone-500">
               Sauvegardez vos clients, chats, séjours et factures.
             </p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => handleBackup(false)}
-                className="w-full bg-white border border-stone-200 text-stone-700 py-2 rounded-lg text-xs font-bold hover:bg-stone-100 transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-white border border-[#E4DDD1] text-stone-700 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#F4F0E8] transition-colors flex items-center justify-center gap-1.5"
               >
-                <Download size={14} /> Données uniquement (JSON)
+                <Download size={13} /> Données uniquement (JSON)
               </button>
               <button
                 onClick={() => handleBackup(true)}
-                className="w-full bg-white border border-stone-200 text-stone-700 py-2 rounded-lg text-xs font-bold hover:bg-stone-100 transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-white border border-[#E4DDD1] text-stone-700 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#F4F0E8] transition-colors flex items-center justify-center gap-1.5"
               >
-                <Camera size={14} /> Sauvegarde complète (avec médias)
+                <Camera size={13} /> Sauvegarde complète (avec médias)
               </button>
             </div>
           </div>
 
-          <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
-            <h4 className="font-bold text-sm">Importer / Restaurer</h4>
-            <p className="text-xs text-stone-500">
+          <div className="p-3.5 bg-[#FAF8F4] rounded-xl border border-[#EDE6DA] space-y-2.5">
+            <h4 className="font-semibold text-xs text-stone-900">Importer / Restaurer</h4>
+            <p className="text-[11px] text-stone-500">
               Réintégrez une sauvegarde précédente. Attention: écrase tout !
             </p>
             <label
-              className={`w-full flex items-center justify-center gap-2 bg-stone-800 text-white py-2 rounded-lg text-xs font-bold transition-colors ${restoring ? "opacity-50 cursor-not-allowed" : "hover:bg-stone-900 cursor-pointer"}`}
+              className={`w-full flex items-center justify-center gap-1.5 bg-[#13382C] text-white py-1.5 rounded-lg text-xs font-semibold transition-colors ${restoring ? "opacity-50 cursor-not-allowed" : "hover:bg-[#0E2B22] cursor-pointer"}`}
             >
-              <Upload size={14} />{" "}
+              <Upload size={13} />{" "}
               {restoring ? "Restauration..." : "Sélectionner un fichier"}
               {!restoring && (
                 <input
@@ -5335,22 +5734,22 @@ function SettingsView({
         </div>
 
         {restoring && (
-          <div className="p-4 bg-stone-900 rounded-xl font-mono text-[10px] text-emerald-400 space-y-1 max-h-40 overflow-y-auto">
+          <div className="p-3 bg-[#13382C] rounded-xl font-mono text-[10px] text-emerald-200 space-y-1 max-h-40 overflow-y-auto">
             {restoreLogs.map((log, i) => (
               <div key={i}>{`> ${log}`}</div>
             ))}
-            <div className="animate-pulse">_</div>
+            <div>_</div>
           </div>
         )}
         {!restoring && restoreLogs.length > 0 && (
-          <div className="p-4 bg-stone-100 rounded-xl font-mono text-[10px] text-stone-600 space-y-1 max-h-40 overflow-y-auto">
-            <div className="flex justify-between items-center mb-2 border-b border-stone-200 pb-1">
+          <div className="p-3 bg-[#FAF8F4] rounded-xl border border-[#EDE6DA] font-mono text-[10px] text-stone-600 space-y-1 max-h-40 overflow-y-auto">
+            <div className="flex justify-between items-center mb-2 border-b border-[#E5DED2] pb-1">
               <span className="font-bold uppercase">
                 Derniers logs d'import
               </span>
               <button
                 onClick={() => setRestoreLogs([])}
-                className="hover:text-red-500"
+                className="hover:text-rose-600"
               >
                 Effacer
               </button>
@@ -5362,11 +5761,11 @@ function SettingsView({
         )}
       </section>
 
-      <section className="bg-red-50 p-6 rounded-2xl border border-red-100 space-y-2">
-        <h3 className="font-bold text-red-700 flex items-center gap-2">
-          <AlertCircle size={20} /> Zone de danger
+      <section className="bg-red-50 p-4 rounded-2xl border border-red-100 space-y-1.5">
+        <h3 className="font-bold text-sm text-red-700 flex items-center gap-2">
+          <AlertCircle size={17} /> Zone de danger
         </h3>
-        <p className="text-sm text-red-600">
+        <p className="text-xs text-red-600">
           La suppression des données est irréversible. Assurez-vous d'avoir une
           sauvegarde.
         </p>
@@ -5530,29 +5929,31 @@ function CalendarView({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold">Calendrier des Séjours</h2>
-          <div className="flex bg-stone-100 p-1 rounded-lg">
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl border border-[#E5DED2] shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+            Calendrier des Séjours
+          </h2>
+          <div className="flex bg-[#F4F0E8] p-0.5 rounded-lg">
             <button
               onClick={() => setViewMode("global")}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === "global" ? "bg-white text-emerald-600 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${viewMode === "global" ? "bg-white text-[#13382C] shadow-sm" : "text-stone-500 hover:text-stone-800"}`}
             >
               Vue Globale
             </button>
             <button
               onClick={() => setViewMode("boxes")}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === "boxes" ? "bg-white text-emerald-600 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${viewMode === "boxes" ? "bg-white text-[#13382C] shadow-sm" : "text-stone-500 hover:text-stone-800"}`}
             >
               Par Box
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             onClick={() => setCurrentDate(new Date())}
-            className="px-3 py-2 text-xs font-bold text-emerald-600 border border-emerald-200 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition-colors"
+            className="px-3 py-1.5 text-xs font-semibold text-emerald-800 border border-emerald-200 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition-colors"
           >
             Aujourd'hui
           </button>
@@ -5570,11 +5971,11 @@ function CalendarView({
                 ),
               )
             }
-            className="p-2 hover:bg-stone-100 rounded-lg"
+            className="p-1.5 hover:bg-[#F4F0E8] rounded-lg transition-colors"
           >
-            <ChevronLeft />
+            <ChevronLeft size={16} />
           </button>
-          <span className="font-bold text-lg min-w-[150px] text-center uppercase tracking-widest">
+          <span className="font-display font-semibold text-sm min-w-[125px] text-center capitalize">
             {displayLabel}
           </span>
           <button
@@ -5591,9 +5992,9 @@ function CalendarView({
                 ),
               )
             }
-            className="p-2 hover:bg-stone-100 rounded-lg"
+            className="p-1.5 hover:bg-[#F4F0E8] rounded-lg transition-colors"
           >
-            <ChevronRight />
+            <ChevronRight size={16} />
           </button>
         </div>
       </div>
@@ -5604,7 +6005,7 @@ function CalendarView({
             <button
               key={r}
               onClick={() => setBoxesTimeRange(r as any)}
-              className={`px-3 py-1 text-xs font-bold rounded-lg ${boxesTimeRange === r ? "bg-emerald-100 text-emerald-700" : "bg-stone-100 text-stone-600 hover:bg-stone-200"}`}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${boxesTimeRange === r ? "bg-[#13382C] text-white shadow-sm" : "bg-white border border-[#E5DED2] text-stone-600 hover:bg-[#F4F0E8]"}`}
             >
               {r === "month" ? "Mois" : r === "quarter" ? "Trimestre" : "Année"}
             </button>
@@ -5613,65 +6014,79 @@ function CalendarView({
       )}
 
       {viewMode === "global" ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-x-auto">
-          <div className="min-w-[800px]">
-            <div className="grid grid-cols-7 bg-stone-50 border-b border-stone-200">
+        <div className="bg-white rounded-2xl shadow-sm border border-[#E5DED2] overflow-x-auto">
+          <div className="min-w-[780px]">
+            <div className="grid grid-cols-7 bg-[#F4F0E8] border-b border-[#E5DED2]">
               {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
                 <div
                   key={d}
-                  className="p-3 text-center text-xs font-bold text-stone-400 uppercase"
+                  className="p-2 text-center text-[11px] font-semibold text-stone-500 uppercase tracking-wide"
                 >
                   {d}
                 </div>
               ))}
             </div>
             <div className="grid grid-cols-7">
-              {days.map((day, i) => (
-                <div
-                  key={i}
-                  className={`min-h-[120px] p-2 border-r border-b border-stone-100 last:border-r-0 ${day === null ? "bg-stone-50/50" : ""}`}
-                >
-                  {day && (
-                    <>
-                      <span className="text-sm font-bold text-stone-400">
-                        {day}
-                      </span>
-                      <div className="mt-2 space-y-1">
-                        {getStaysForDay(day).map((stay) => {
-                          const date = new Date(
-                            currentDate.getFullYear(),
-                            currentDate.getMonth(),
-                            day!,
-                          );
-                          return (
-                            <button
-                              key={stay.id}
-                              onClick={() => setSelectedStay(stay)}
-                              style={getDayBarStyle(stay, date)}
-                              className={`block text-left text-[10px] p-1 rounded font-bold truncate transition-all hover:scale-105 shadow-sm ${getBoxStyle(stay.box_number)}`}
-                              title={`${stay.cat_name} (${stay.arrival_date} ${stay.arrival_time || "14:00"} - ${stay.actual_departure || stay.planned_departure} ${stay.departure_time || "11:00"})`}
-                            >
-                              {stay.cat_name} (Box {stay.box_number})
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
+              {days.map((day, i) => {
+                const isToday =
+                  day !== null &&
+                  format(
+                    new Date(
+                      currentDate.getFullYear(),
+                      currentDate.getMonth(),
+                      day,
+                    ),
+                    "yyyy-MM-dd",
+                  ) === format(new Date(), "yyyy-MM-dd");
+                return (
+                  <div
+                    key={i}
+                    className={`min-h-[92px] p-1.5 border-r border-b border-[#F0E9DC] last:border-r-0 ${day === null ? "bg-[#FAF8F4]" : isToday ? "bg-[#FBF6EB]/70" : ""}`}
+                  >
+                    {day && (
+                      <>
+                        <span
+                          className={`inline-flex items-center justify-center text-[11px] font-semibold tabular-nums ${isToday ? "w-5 h-5 rounded-full bg-[#13382C] text-white" : "text-stone-500"}`}
+                        >
+                          {day}
+                        </span>
+                        <div className="mt-1 space-y-0.5">
+                          {getStaysForDay(day).map((stay) => {
+                            const date = new Date(
+                              currentDate.getFullYear(),
+                              currentDate.getMonth(),
+                              day!,
+                            );
+                            return (
+                              <button
+                                key={stay.id}
+                                onClick={() => setSelectedStay(stay)}
+                                style={getDayBarStyle(stay, date)}
+                                className={`block text-left text-[10px] px-1 py-0.5 rounded font-semibold truncate transition-all hover:scale-[1.02] shadow-sm ${getBoxStyle(stay.box_number)}`}
+                                title={`${stay.cat_name} (${stay.arrival_date} ${stay.arrival_time || "14:00"} - ${stay.actual_departure || stay.planned_departure} ${stay.departure_time || "11:00"})`}
+                              >
+                                {stay.cat_name} (Box {stay.box_number})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-x-auto">
+        <div className="bg-white rounded-2xl shadow-sm border border-[#E5DED2] overflow-x-auto">
           <div
             style={{
               minWidth: `${Math.max(1200, daysToRender.length * 30 + 100)}px`,
             }}
           >
             <div
-              className="bg-stone-50 border-b border-stone-200"
+              className="bg-[#F4F0E8] border-b border-[#E5DED2]"
               style={{
                 display: "grid",
                 gridTemplateColumns: `100px repeat(${daysToRender.length}, minmax(30px, 1fr))`,
@@ -5851,19 +6266,21 @@ function StatsView({
   );
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Statistiques & Rapports</h2>
-        <div className="flex items-center gap-4">
-          <div className="flex bg-stone-100 p-1 rounded-xl">
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl border border-[#E5DED2] shadow-sm">
+        <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+          Statistiques & Activité
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex bg-[#F4F0E8] p-0.5 rounded-lg">
             {(["month", "quarter", "year"] as const).map((range) => (
               <button
                 key={range}
                 onClick={() => setTimeRange(range)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
                   timeRange === range
-                    ? "bg-white text-emerald-600 shadow-sm"
-                    : "text-stone-500 hover:text-stone-700"
+                    ? "bg-white text-[#13382C] shadow-sm"
+                    : "text-stone-500 hover:text-stone-800"
                 }`}
               >
                 {range === "month"
@@ -5878,7 +6295,7 @@ function StatsView({
           {timeRange === "month" && (
             <input
               type="month"
-              className="p-2 border border-stone-200 rounded-lg text-sm"
+              className="px-2.5 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs font-medium"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
             />
@@ -5887,7 +6304,7 @@ function StatsView({
           {timeRange === "quarter" && (
             <div className="flex gap-2">
               <select
-                className="p-2 border border-stone-200 rounded-lg text-sm"
+                className="px-2.5 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs font-medium"
                 value={selectedQuarter}
                 onChange={(e) => setSelectedQuarter(parseInt(e.target.value))}
               >
@@ -5899,7 +6316,7 @@ function StatsView({
               </select>
               <input
                 type="number"
-                className="p-2 border border-stone-200 rounded-lg text-sm w-24"
+                className="px-2.5 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs w-20 tabular-nums"
                 value={isNaN(selectedYear) ? "" : selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
               />
@@ -5909,7 +6326,7 @@ function StatsView({
           {timeRange === "year" && (
             <input
               type="number"
-              className="p-2 border border-stone-200 rounded-lg text-sm w-24"
+              className="px-2.5 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs w-20 tabular-nums"
               value={isNaN(selectedYear) ? "" : selectedYear}
               onChange={(e) => setSelectedYear(parseInt(e.target.value))}
             />
@@ -5917,67 +6334,82 @@ function StatsView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-          <p className="text-xs font-bold text-stone-400 uppercase mb-1">
-            Taux de remplissage ({label})
-          </p>
-          <div className="flex items-end gap-2">
-            <span className="text-3xl font-bold text-emerald-600">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2]">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-stone-500 capitalize">
+              Taux de remplissage · {label}
+            </p>
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
+              <BarChart3 size={16} />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2 tabular-nums">
+            <span className="text-2xl font-bold text-emerald-800">
               {occupancyRate}%
             </span>
-            <span className="text-sm text-stone-400 mb-1">estimé</span>
+            <span className="text-[11px] text-stone-500">estimé</span>
           </div>
-          <div className="mt-4 w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+          <div className="mt-3 w-full bg-[#F2EDE4] h-1.5 rounded-full overflow-hidden">
             <div
-              className="bg-emerald-500 h-full"
+              className="bg-emerald-600 h-full rounded-full transition-all duration-300"
               style={{ width: `${occupancyRate}%` }}
             ></div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-          <p className="text-xs font-bold text-stone-400 uppercase mb-1">
-            Chiffre d'Affaires ({label})
-          </p>
-          <span className="text-3xl font-bold text-stone-900">
-            {displayRevenue} €
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2]">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-stone-500 capitalize">
+              Chiffre d'Affaires · {label}
+            </p>
+            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+              <CreditCard size={16} />
+            </div>
+          </div>
+          <span className="text-2xl font-bold text-stone-900 tabular-nums">
+            {displayRevenue.toFixed(2)} €
           </span>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-          <p className="text-xs font-bold text-stone-400 uppercase mb-1">
-            Jours Occupés ({label})
-          </p>
-          <span className="text-3xl font-bold text-blue-600">
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2]">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-stone-500 capitalize">
+              Jours Occupés · {label}
+            </p>
+            <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center">
+              <CalendarDays size={16} />
+            </div>
+          </div>
+          <span className="text-2xl font-bold text-sky-800 tabular-nums">
             {displayOccupancy}
           </span>
         </div>
       </div>
 
       {/* ... rest of StatsView (Revenue History) ... */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-          <h3 className="font-bold mb-6 flex items-center gap-2">
-            <FileText size={18} /> Historique du CA
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2]">
+          <h3 className="font-display font-semibold text-base mb-3.5 flex items-center gap-2 text-stone-900">
+            <FileText size={16} className="text-emerald-700" /> Historique du CA
           </h3>
-          <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
             {stats.revenue.map((r: any) => (
               <button
                 key={r.month}
                 onClick={() => onNavigateToInvoices(r.month)}
-                className="w-full flex justify-between items-center p-3 bg-stone-50 hover:bg-emerald-50 hover:ring-1 hover:ring-emerald-200 rounded-xl transition-all group"
+                className="w-full flex justify-between items-center p-2.5 bg-[#FAF8F4] hover:bg-emerald-50 border border-transparent hover:border-emerald-200 rounded-xl transition-all group"
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-stone-600 group-hover:text-emerald-700">
+                  <span className="font-mono font-semibold text-xs text-stone-700 group-hover:text-emerald-800 tabular-nums">
                     {r.month}
                   </span>
                   <ExternalLink
                     size={12}
-                    className="text-stone-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="text-stone-400 opacity-0 group-hover:opacity-100 transition-opacity"
                   />
                 </div>
-                <span className="font-bold text-emerald-600">
+                <span className="font-mono font-bold text-sm text-emerald-800 tabular-nums">
                   {r.total.toFixed(2)} €
                 </span>
               </button>
@@ -5985,27 +6417,27 @@ function StatsView({
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-          <h3 className="font-bold mb-6 flex items-center gap-2">
-            <Calendar size={18} /> Activité par mois
+        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2]">
+          <h3 className="font-display font-semibold text-base mb-3.5 flex items-center gap-2 text-stone-900">
+            <Calendar size={16} className="text-sky-700" /> Activité par mois
           </h3>
-          <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
             {stats.occupancy.map((o: any) => (
               <button
                 key={o.month}
                 onClick={() => onNavigateToInvoices(o.month)}
-                className="w-full flex justify-between items-center p-3 bg-stone-50 hover:bg-blue-50 hover:ring-1 hover:ring-blue-200 rounded-xl transition-all group"
+                className="w-full flex justify-between items-center p-2.5 bg-[#FAF8F4] hover:bg-sky-50 border border-transparent hover:border-sky-200 rounded-xl transition-all group"
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-stone-600 group-hover:text-blue-700">
+                  <span className="font-mono font-semibold text-xs text-stone-700 group-hover:text-sky-800 tabular-nums">
                     {o.month}
                   </span>
                   <ExternalLink
                     size={12}
-                    className="text-stone-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="text-stone-400 opacity-0 group-hover:opacity-100 transition-opacity"
                   />
                 </div>
-                <span className="font-bold text-blue-600">
+                <span className="font-mono font-bold text-sm text-sky-800 tabular-nums">
                   {o.stays_count} jours occupés
                 </span>
               </button>
@@ -6174,9 +6606,11 @@ function ReportsView({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-        <h2 className="text-2xl font-bold">Rapports & Registres</h2>
+    <div className="space-y-4">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 bg-white p-4 rounded-2xl border border-[#E5DED2] shadow-sm">
+        <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+          Rapports & Registres
+        </h2>
         <div className="flex flex-wrap gap-2 w-full xl:w-auto">
           <button
             onClick={
@@ -6184,15 +6618,15 @@ function ReportsView({
                 ? generateRegisterPDF
                 : generateHealthReportPDF
             }
-            className="flex-1 sm:flex-initial bg-stone-800 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-stone-900 transition-colors text-sm font-bold"
+            className="flex-1 sm:flex-initial bg-[#13382C] text-white px-3.5 py-1.5 rounded-lg flex items-center justify-center gap-1.5 hover:bg-[#0E2B22] transition-colors text-xs font-semibold"
           >
-            <FileText size={18} /> Imprimer
+            <FileText size={15} /> Imprimer PDF
           </button>
           {reportTab === "register" && (
             <div className="flex items-center gap-2 flex-1 sm:flex-initial">
               <input
                 type="month"
-                className="w-full p-2 border border-stone-200 rounded-lg text-sm"
+                className="w-full px-2.5 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
               />
@@ -6201,76 +6635,76 @@ function ReportsView({
           <input
             type="text"
             placeholder="Rechercher..."
-            className="flex-1 sm:flex-initial p-2 border border-stone-200 rounded-lg text-sm min-w-0"
+            className="flex-1 sm:flex-initial px-2.5 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs min-w-0"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row border-b border-stone-200">
+      <div className="flex flex-col sm:flex-row border-b border-[#E5DED2]">
         <button
           onClick={() => setReportTab("register")}
-          className={`flex-1 px-6 py-3 font-bold text-sm transition-colors border-b-2 ${reportTab === "register" ? "border-emerald-500 text-emerald-600" : "border-transparent text-stone-400 hover:text-stone-600"}`}
+          className={`flex-1 px-4 py-2.5 font-semibold text-[13px] transition-colors border-b-2 ${reportTab === "register" ? "border-emerald-700 text-[#13382C]" : "border-transparent text-stone-400 hover:text-stone-700"}`}
         >
           Registre Entrées/Sorties
         </button>
         <button
           onClick={() => setReportTab("health")}
-          className={`flex-1 px-6 py-3 font-bold text-sm transition-colors border-b-2 ${reportTab === "health" ? "border-emerald-500 text-emerald-600" : "border-transparent text-stone-400 hover:text-stone-600"}`}
+          className={`flex-1 px-4 py-2.5 font-semibold text-[13px] transition-colors border-b-2 ${reportTab === "health" ? "border-emerald-700 text-[#13382C]" : "border-transparent text-stone-400 hover:text-stone-700"}`}
         >
           Suivi de Santé Global
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[1000px]">
+      <div className="bg-white rounded-2xl shadow-sm border border-[#E5DED2] overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[920px] text-[13px]">
           <thead>
-            <tr className="bg-stone-50 border-b border-stone-200">
-              <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+            <tr className="bg-[#F4F0E8] border-b border-[#E5DED2]">
+              <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                 ID
               </th>
-              <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+              <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                 Animal (Race, Couleur, Puce)
               </th>
-              <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+              <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                 Propriétaire
               </th>
               {reportTab === "register" ? (
                 <>
-                  <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+                  <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                     Arrivée
                   </th>
-                  <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+                  <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                     Départ Réel/Prévu
                   </th>
-                  <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+                  <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                     Box
                   </th>
-                  <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+                  <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                     Commentaire
                   </th>
                 </>
               ) : (
                 <>
-                  <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+                  <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                     Bien mangé ?
                   </th>
-                  <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+                  <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                     Comportement anormal ?
                   </th>
-                  <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+                  <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                     Médicament
                   </th>
-                  <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+                  <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                     Incident Toilettage
                   </th>
-                  <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+                  <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                     Commentaire Santé
                   </th>
                 </>
               )}
-              <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+              <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                 Actions
               </th>
             </tr>
@@ -6282,12 +6716,12 @@ function ReportsView({
                     key={stay.id}
                     className="border-b border-stone-100 hover:bg-stone-50 transition-colors"
                   >
-                    <td className="p-4 text-sm font-bold text-stone-400">
+                    <td className="px-3.5 py-2.5 text-xs font-bold text-stone-400 tabular-nums">
                       #{stay.id}
                     </td>
-                    <td className="p-4">
+                    <td className="px-3.5 py-2.5">
                       <div className="flex flex-col">
-                        <span className="font-bold text-stone-900">
+                        <span className="font-semibold text-stone-900">
                           {stay.cat_name}
                         </span>
                         <span className="text-[10px] text-stone-500">
@@ -6296,25 +6730,25 @@ function ReportsView({
                         </span>
                       </div>
                     </td>
-                    <td className="p-4 text-sm text-stone-600">
+                    <td className="px-3.5 py-2.5 text-stone-600">
                       {stay.owner_name}
                     </td>
-                    <td className="p-4 text-sm text-stone-600">
+                    <td className="px-3.5 py-2.5 text-stone-600 tabular-nums">
                       {stay.arrival_date}
                     </td>
-                    <td className="p-4 text-sm text-stone-600">
+                    <td className="px-3.5 py-2.5 text-stone-600 tabular-nums">
                       {stay.actual_departure || stay.planned_departure}
                     </td>
-                    <td className="p-4 text-sm font-bold text-emerald-600">
+                    <td className="px-3.5 py-2.5 text-xs font-bold text-emerald-700">
                       Box {stay.box_number}
                     </td>
-                    <td className="p-4 text-sm text-stone-500 italic max-w-xs truncate">
+                    <td className="px-3.5 py-2.5 text-xs text-stone-500 italic max-w-xs truncate">
                       {stay.comments || "-"}
                     </td>
-                    <td className="p-4 flex gap-3">
+                    <td className="px-3.5 py-2.5 flex gap-2">
                       <button
                         onClick={() => setSelectedStayForEdit(stay)}
-                        className="text-emerald-600 hover:text-emerald-800 text-sm font-bold bg-emerald-50 px-3 py-1 rounded-lg transition-colors"
+                        className="text-emerald-700 hover:text-emerald-900 text-xs font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg transition-colors"
                       >
                         Éditer
                       </button>
@@ -6322,7 +6756,7 @@ function ReportsView({
                         onClick={() => handleDelete(stay.id)}
                         className="text-red-400 hover:text-red-600 transition-colors bg-red-50 p-1.5 rounded-lg"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
                     </td>
                   </tr>
@@ -6332,48 +6766,48 @@ function ReportsView({
                     key={report.stay_id}
                     className="border-b border-stone-100 hover:bg-stone-50 transition-colors"
                   >
-                    <td className="p-4 text-sm font-bold text-stone-400">
+                    <td className="px-3.5 py-2.5 text-xs font-bold text-stone-400 tabular-nums">
                       #{report.stay_id}
                     </td>
-                    <td className="p-4">
-                      <span className="font-bold text-stone-900">
+                    <td className="px-3.5 py-2.5">
+                      <span className="font-semibold text-stone-900">
                         {report.cat_name}
                       </span>
                     </td>
-                    <td className="p-4 text-sm text-stone-600">
+                    <td className="px-3.5 py-2.5 text-stone-600">
                       {report.owner_name}
                     </td>
-                    <td className="p-4 text-sm">
+                    <td className="px-3.5 py-2.5 text-xs">
                       {report.date
                         ? report.ate_well
                           ? "✅ Oui"
                           : "❌ Non"
                         : "-"}
                     </td>
-                    <td className="p-4 text-sm">
+                    <td className="px-3.5 py-2.5 text-xs">
                       {report.date
                         ? report.abnormal_behavior
                           ? "⚠️ Oui"
                           : "✅ Non"
                         : "-"}
                     </td>
-                    <td className="p-4 text-sm text-stone-600">
+                    <td className="px-3.5 py-2.5 text-stone-600">
                       {report.medication || "-"}
                     </td>
-                    <td className="p-4 text-sm text-stone-600">
+                    <td className="px-3.5 py-2.5 text-stone-600">
                       {report.incident || "-"}
                     </td>
-                    <td className="p-4 text-sm text-stone-500 italic max-w-xs truncate">
+                    <td className="px-3.5 py-2.5 text-xs text-stone-500 italic max-w-xs truncate">
                       {report.health_comments || "-"}
                     </td>
-                    <td className="p-4 flex gap-3">
+                    <td className="px-3.5 py-2.5 flex gap-2">
                       <button
                         onClick={() =>
                           setSelectedStayForEdit(
                             stays.find((s) => s.id === report.stay_id) || null,
                           )
                         }
-                        className="text-emerald-600 hover:text-emerald-800 text-sm font-bold bg-emerald-50 px-3 py-1 rounded-lg transition-colors"
+                        className="text-emerald-700 hover:text-emerald-900 text-xs font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg transition-colors"
                       >
                         Éditer
                       </button>
@@ -6381,7 +6815,7 @@ function ReportsView({
                         onClick={() => handleDelete(report.stay_id)}
                         className="text-red-400 hover:text-red-600 transition-colors bg-red-50 p-1.5 rounded-lg"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
                     </td>
                   </tr>
@@ -6389,7 +6823,7 @@ function ReportsView({
           </tbody>
         </table>
         {filtered.length === 0 && reportTab === "register" && (
-          <div className="p-12 text-center text-stone-400">
+          <div className="p-8 text-center text-xs text-stone-400">
             Aucun résultat pour cette période.
           </div>
         )}
@@ -7203,35 +7637,43 @@ function ContractsView({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">Contrats</h2>
-        <input
-          type="text"
-          placeholder="Rechercher un séjour..."
-          className="p-2 border border-stone-200 rounded-lg text-sm w-full sm:w-64"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl border border-[#E5DED2] shadow-sm">
+        <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900">
+          Contrats & Fiches Sanitaires
+        </h2>
+        <div className="relative w-full sm:w-56">
+          <Search
+            size={14}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400"
+          />
+          <input
+            type="text"
+            placeholder="Rechercher un séjour..."
+            className="pl-8 pr-3 py-1.5 bg-[#FAF8F4] border border-[#E4DDD1] rounded-lg text-xs w-full outline-none focus:bg-white focus:border-emerald-600"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[600px]">
+      <div className="bg-white rounded-2xl shadow-sm border border-[#E5DED2] overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[600px] text-[13px]">
           <thead>
-            <tr className="bg-stone-50 border-b border-stone-200">
-              <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+            <tr className="bg-[#F4F0E8] border-b border-[#E5DED2]">
+              <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                 ID
               </th>
-              <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+              <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                 Client
               </th>
-              <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+              <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                 Animal
               </th>
-              <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+              <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                 Dates
               </th>
-              <th className="p-4 text-xs font-bold text-stone-400 uppercase">
+              <th className="px-3.5 py-2.5 text-[11px] font-semibold text-stone-500 uppercase">
                 Action
               </th>
             </tr>
@@ -7240,26 +7682,26 @@ function ContractsView({
             {filteredStays.map((stay) => (
               <tr
                 key={stay.id}
-                className="border-b border-stone-100 hover:bg-stone-50 transition-colors"
+                className="border-b border-[#F0E9DC] hover:bg-[#FAF8F4] transition-colors"
               >
-                <td className="p-4 text-sm font-bold text-stone-400">
+                <td className="px-3.5 py-2.5 text-xs font-semibold text-stone-400 tabular-nums">
                   #{stay.id}
                 </td>
-                <td className="p-4 text-sm text-stone-600">
+                <td className="px-3.5 py-2.5 font-medium text-stone-700">
                   {stay.owner_name}
                 </td>
-                <td className="p-4 text-sm text-stone-600">{stay.cat_name}</td>
-                <td className="p-4 text-sm text-stone-600">
+                <td className="px-3.5 py-2.5 font-semibold text-stone-900">{stay.cat_name}</td>
+                <td className="px-3.5 py-2.5 text-xs text-stone-600 tabular-nums">
                   {format(new Date(stay.arrival_date), "dd/MM/yyyy")} au{" "}
                   {format(new Date(stay.planned_departure), "dd/MM/yyyy")}
                 </td>
-                <td className="p-4">
+                <td className="px-3.5 py-2.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => generateContractPDF(stay)}
-                          className="text-indigo-600 hover:text-indigo-800 text-[11px] font-bold bg-indigo-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                          className="text-sky-700 hover:text-sky-900 text-xs font-semibold bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
                           title="Générer le contrat"
                         >
                           <FileText size={14} /> Contrat
@@ -7267,7 +7709,7 @@ function ContractsView({
                         {(stay.contract_urls || []).length === 0 &&
                           !uploadingId && (
                             <label
-                              className={`cursor-pointer text-emerald-600 hover:text-emerald-800 text-[11px] font-bold bg-emerald-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 ${uploadingId === stay.id + "_contract" ? "opacity-50 pointer-events-none" : ""}`}
+                              className={`cursor-pointer text-emerald-800 hover:text-emerald-950 text-xs font-semibold bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 ${uploadingId === stay.id + "_contract" ? "opacity-50 pointer-events-none" : ""}`}
                             >
                               <Upload size={14} />{" "}
                               {uploadingId === stay.id + "_contract"
@@ -7296,13 +7738,13 @@ function ContractsView({
                           >
                             <button
                               onClick={() => openBase64File(url)}
-                              className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-1 rounded-l-lg text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                              className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 py-1 rounded-l-lg text-[10px] font-semibold flex items-center gap-1 hover:bg-emerald-100 transition-colors"
                             >
                               <FileText size={12} /> C{idx + 1}
                             </button>
                             <button
                               onClick={() => removeContract(stay, idx)}
-                              className="bg-red-50 border border-red-100 text-red-500 px-1.5 py-1 rounded-r-lg hover:bg-red-100 transition-colors"
+                              className="bg-rose-50 border border-rose-200 text-rose-600 px-1.5 py-1 rounded-r-lg hover:bg-rose-100 transition-colors"
                               title="Supprimer"
                             >
                               <Trash2 size={12} />
@@ -7314,14 +7756,14 @@ function ContractsView({
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => generateHealthSheetPDF(stay)}
-                          className="text-orange-600 hover:text-orange-800 text-[11px] font-bold bg-orange-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                          className="text-amber-800 hover:text-amber-950 text-xs font-semibold bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
                           title="Générer la fiche d'admission"
                         >
                           <HeartPulse size={14} /> Fiche Sanitaire
                         </button>
                         {!stay.health_sheet_scan_url && !uploadingId && (
                           <label
-                            className={`cursor-pointer text-emerald-600 hover:text-emerald-800 text-[11px] font-bold bg-emerald-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 ${uploadingId === stay.id + "_health_sheet" ? "opacity-50 pointer-events-none" : ""}`}
+                            className={`cursor-pointer text-emerald-800 hover:text-emerald-950 text-xs font-semibold bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 ${uploadingId === stay.id + "_health_sheet" ? "opacity-50 pointer-events-none" : ""}`}
                           >
                             <Upload size={14} />{" "}
                             {uploadingId === stay.id + "_health_sheet"
@@ -7349,13 +7791,13 @@ function ContractsView({
                               onClick={() =>
                                 openBase64File(stay.health_sheet_scan_url!)
                               }
-                              className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-1 rounded-l-lg text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                              className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 py-1 rounded-l-lg text-[10px] font-semibold flex items-center gap-1 hover:bg-emerald-100 transition-colors"
                             >
                               <HeartPulse size={12} /> Signée
                             </button>
                             <button
                               onClick={() => removeHealthSheet(stay)}
-                              className="bg-red-50 border border-red-100 text-red-500 px-1.5 py-1 rounded-r-lg hover:bg-red-100 transition-colors"
+                              className="bg-rose-50 border border-rose-200 text-rose-600 px-1.5 py-1 rounded-r-lg hover:bg-rose-100 transition-colors"
                               title="Supprimer"
                             >
                               <Trash2 size={12} />
@@ -7365,8 +7807,8 @@ function ContractsView({
                       </div>
 
                       {uploadingId?.startsWith(stay.id) && (
-                        <span className="text-[10px] text-emerald-600 animate-pulse font-bold">
-                          Téléchargement...
+                        <span className="text-[11px] text-emerald-700 font-semibold">
+                          Téléchargement en cours...
                         </span>
                       )}
                     </div>
@@ -7487,42 +7929,42 @@ function AllInvoicesView({
   const currentStay = stays.find((s) => s.id === selectedStayId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Stay Selector Modal for NEW invoice */}
       {isAddingNew && (
         <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 space-y-6 transform animate-in zoom-in-95 duration-200 border border-stone-100">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 transform animate-in zoom-in-95 duration-200 border border-stone-100">
             <div className="flex justify-between items-center">
-              <h3 className="text-2xl font-black text-stone-900 tracking-tight">
+              <h3 className="font-display text-lg font-semibold text-stone-900 tracking-tight">
                 Nouvelle Facture
               </h3>
               <button
                 onClick={() => setIsAddingNew(false)}
-                className="p-2 hover:bg-stone-50 rounded-full transition-colors"
+                className="p-1.5 hover:bg-stone-50 rounded-full transition-colors"
               >
-                <X size={24} className="text-stone-400" />
+                <X size={20} className="text-stone-400" />
               </button>
             </div>
 
-            <div className="space-y-4">
-              <p className="text-stone-500 text-sm font-medium">
+            <div className="space-y-3">
+              <p className="text-stone-500 text-xs font-medium">
                 Sélectionnez le séjour concerné :
               </p>
               <div className="relative">
                 <input
                   type="text"
-                  className="w-full p-4 pl-12 bg-stone-50 border border-stone-100 rounded-2xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                  className="w-full p-2.5 pl-9 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                   placeholder="Rechercher Client ou Animal..."
                   value={searchStay}
                   onChange={(e) => setSearchStay(e.target.value)}
                 />
                 <Edit
-                  className="absolute left-4 top-4 text-stone-300"
-                  size={20}
+                  className="absolute left-3 top-2.5 text-stone-300"
+                  size={16}
                 />
               </div>
 
-              <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
+              <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
                 {stays
                   .filter(
                     (s) =>
@@ -7541,18 +7983,18 @@ function AllInvoicesView({
                         setSelectedStayId(s.id);
                         setIsAddingNew(false);
                       }}
-                      className="w-full p-4 text-left bg-stone-50 hover:bg-emerald-50 border border-stone-100 rounded-2xl transition-all flex justify-between items-center group"
+                      className="w-full p-3 text-left bg-stone-50 hover:bg-emerald-50 border border-stone-100 rounded-xl transition-all flex justify-between items-center group"
                     >
                       <div>
-                        <p className="font-bold text-stone-900 group-hover:text-emerald-700">
+                        <p className="font-semibold text-xs text-stone-900 group-hover:text-emerald-700">
                           {s.owner_name}
                         </p>
-                        <p className="text-xs text-stone-400 font-medium italic group-hover:text-emerald-600">
+                        <p className="text-[11px] text-stone-400 font-medium italic group-hover:text-emerald-600">
                           Pour {s.cat_name} ({formatDateSafe(s.arrival_date)})
                         </p>
                       </div>
                       <ChevronRight
-                        size={20}
+                        size={16}
                         className="text-stone-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all"
                       />
                     </button>
@@ -7566,13 +8008,13 @@ function AllInvoicesView({
       {/* Invoice Form Modal (when a stay is selected) */}
       {selectedStayId && currentStay && (
         <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-300 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-8 my-8 space-y-6 transform animate-in zoom-in-95 duration-200 border border-stone-100">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 my-8 space-y-4 transform animate-in zoom-in-95 duration-200 border border-stone-100">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-2xl font-black text-stone-900 tracking-tight">
+                <h3 className="font-display text-lg font-semibold text-stone-900 tracking-tight">
                   Gestion Facture
                 </h3>
-                <p className="text-stone-400 text-sm font-medium italic">
+                <p className="text-stone-400 text-xs font-medium italic">
                   {currentStay.owner_name} • {currentStay.cat_name}
                 </p>
               </div>
@@ -7581,9 +8023,9 @@ function AllInvoicesView({
                   setSelectedStayId(null);
                   fetchInvoices();
                 }}
-                className="p-2 hover:bg-stone-50 rounded-full transition-colors"
+                className="p-1.5 hover:bg-stone-50 rounded-full transition-colors"
               >
-                <X size={24} className="text-stone-400" />
+                <X size={20} className="text-stone-400" />
               </button>
             </div>
 
@@ -7598,13 +8040,13 @@ function AllInvoicesView({
               }}
             />
 
-            <div className="pt-4 border-t border-stone-50 flex justify-end">
+            <div className="pt-3 border-t border-stone-100 flex justify-end">
               <button
                 onClick={() => {
                   setSelectedStayId(null);
                   fetchInvoices();
                 }}
-                className="px-6 py-3 bg-stone-100 text-stone-600 rounded-2xl font-bold text-sm hover:bg-stone-200 transition-colors"
+                className="px-4 py-2 bg-stone-100 text-stone-600 rounded-xl font-semibold text-xs hover:bg-stone-200 transition-colors"
               >
                 Fermer
               </button>
@@ -7613,43 +8055,43 @@ function AllInvoicesView({
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-8 rounded-3xl shadow-sm border border-stone-100">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-[#E5DED2]">
         <div>
-          <h2 className="text-3xl font-black text-stone-900 tracking-tight">
+          <h2 className="font-display text-lg sm:text-xl font-semibold text-stone-900 tracking-tight">
             Journal des Facturations
           </h2>
-          <p className="text-stone-400 text-sm font-medium italic mt-1">
+          <p className="text-stone-500 text-xs mt-0.5">
             Pilotage de la trésorerie et suivi des encaissements
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <button
             onClick={() => setIsAddingNew(true)}
-            className="flex-1 sm:flex-none p-4 bg-stone-900 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-stone-800 transition-all shadow-lg active:scale-95"
+            className="flex-1 sm:flex-none px-3.5 py-2 bg-[#13382C] text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-[#0E2B22] transition-all shadow-sm active:scale-95"
           >
-            <Plus size={20} /> Nouvelle Facture
+            <Plus size={15} /> Nouvelle Facture
           </button>
-          <div className="bg-emerald-600 text-white p-4 px-8 rounded-2xl shadow-xl shadow-emerald-100 flex flex-col items-center min-w-[160px]">
-            <span className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">
+          <div className="bg-amber-50 text-amber-950 border border-amber-200 py-2 px-4 rounded-xl flex flex-col items-center min-w-[140px] tabular-nums">
+            <span className="text-[10px] font-semibold text-amber-800">
               CA Encaissé (Période)
             </span>
-            <span className="text-3xl font-black">{totalCA.toFixed(2)} €</span>
+            <span className="text-lg font-bold">{totalCA.toFixed(2)} €</span>
           </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100 space-y-6">
-        <div className="flex flex-wrap items-center gap-3 bg-stone-50 p-2 rounded-2xl">
-          <div className="flex-1 min-w-[200px] relative">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2] space-y-4">
+        <div className="flex flex-wrap items-center gap-2.5 bg-[#FAF8F4] border border-[#EDE6DA] p-1.5 rounded-xl">
+          <div className="flex-1 min-w-[180px] relative">
             <input
               type="month"
-              className="w-full p-3 bg-white border border-stone-100 rounded-xl text-sm font-bold text-stone-700 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+              className="w-full p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all tabular-nums"
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
             />
           </div>
           <select
-            className="flex-1 min-w-[180px] p-3 bg-white border border-stone-100 rounded-xl text-sm font-bold text-stone-700 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+            className="flex-1 min-w-[160px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
           >
@@ -7664,19 +8106,19 @@ function AllInvoicesView({
           </select>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-stone-100">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto rounded-xl border border-[#EDE6DA]">
+          <table className="w-full text-left border-collapse text-[13px]">
             <thead>
-              <tr className="bg-stone-50/50 border-b border-stone-100 text-[10px] font-black text-stone-400 uppercase tracking-widest">
-                <th className="p-5">Date</th>
-                <th className="p-5">N° Facture</th>
-                <th className="p-5">Client / Animal</th>
-                <th className="p-5">Statut / Paiement</th>
-                <th className="p-5">Montant</th>
-                <th className="p-5 text-right">Actions</th>
+              <tr className="bg-[#F4F0E8] border-b border-[#E5DED2] text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
+                <th className="px-3.5 py-2.5">Date</th>
+                <th className="px-3.5 py-2.5">N° Facture</th>
+                <th className="px-3.5 py-2.5">Client / Animal</th>
+                <th className="px-3.5 py-2.5">Statut / Paiement</th>
+                <th className="px-3.5 py-2.5">Montant</th>
+                <th className="px-3.5 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-50">
+            <tbody className="divide-y divide-[#F0E9DC]">
               {filteredInvoices.map((inv) => {
                 const statusConfig = getInvoiceStatusConfig(
                   inv.status,
@@ -7685,32 +8127,32 @@ function AllInvoicesView({
                 return (
                   <tr
                     key={inv.id}
-                    className="hover:bg-stone-50/50 transition-colors group"
+                    className="hover:bg-[#FAF8F4] transition-colors group"
                   >
-                    <td className="p-5 text-sm text-stone-500 font-medium">
+                    <td className="px-3.5 py-2.5 text-xs text-stone-500 font-medium tabular-nums">
                       {formatDateSafe(inv.created_at)}
                     </td>
-                    <td className="p-5 font-black text-stone-900 tracking-tight">
+                    <td className="px-3.5 py-2.5 font-semibold text-stone-900 tabular-nums">
                       {inv.invoice_number}
                     </td>
-                    <td className="p-5">
+                    <td className="px-3.5 py-2.5">
                       <div className="flex flex-col">
-                        <span className="font-bold text-stone-800">
+                        <span className="font-semibold text-stone-800">
                           {inv.owner_name || "-"}
                         </span>
-                        <span className="text-xs text-stone-400 font-medium italic">
+                        <span className="text-[11px] text-stone-500">
                           {inv.cat_name || "-"}
                         </span>
                       </div>
                     </td>
-                    <td className="p-5">
-                      <div className="flex flex-col gap-1.5">
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex flex-col gap-0.5">
                         <div
                           onClick={() =>
                             inv.status === "partially_paid" &&
                             handleQuickPaid(inv)
                           }
-                          className={`px-3 py-1 rounded-full text-[10px] font-black uppercase w-fit flex items-center gap-1.5 border transition-all cursor-default ${inv.status === "partially_paid" ? "hover:scale-105 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 cursor-pointer" : ""} ${statusConfig.bg} ${statusConfig.color} border-current/20`}
+                          className={`px-2 py-0.5 rounded-md text-[11px] font-semibold w-fit flex items-center gap-1 border transition-all cursor-default ${inv.status === "partially_paid" ? "hover:bg-emerald-600 hover:text-white hover:border-emerald-600 cursor-pointer" : ""} ${statusConfig.bg} ${statusConfig.color} border-current/20`}
                           title={
                             inv.status === "partially_paid"
                               ? "Cliquer pour marquer comme Payé"
@@ -7718,21 +8160,20 @@ function AllInvoicesView({
                           }
                         >
                           {inv.status === "partially_paid" && (
-                            <CreditCard size={12} />
+                            <CreditCard size={11} />
                           )}
                           {statusConfig.label}
                         </div>
                         {inv.payment_method && (
-                          <span className="text-[10px] text-stone-400 font-bold ml-1 flex items-center gap-1 uppercase tracking-tight">
-                            <span className="w-1 h-1 rounded-full bg-stone-300"></span>
+                          <span className="text-[10px] text-stone-400 font-medium ml-0.5">
                             {inv.payment_method}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="p-5">
+                    <td className="px-3.5 py-2.5 tabular-nums">
                       <div className="flex flex-col">
-                        <span className="font-black text-stone-900 text-base">
+                        <span className="font-bold text-stone-900 text-sm">
                           {inv.type === "final"
                             ? (inv.amount - (inv.deposit_amount || 0)).toFixed(
                                 2,
@@ -7741,25 +8182,25 @@ function AllInvoicesView({
                           €
                         </span>
                         {inv.type === "final" && (
-                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md mt-1 w-fit">
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
                             Final (Acompte déduit)
                           </span>
                         )}
                         {inv.type === "deposit" && (
-                          <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-md mt-1 w-fit">
+                          <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
                             Acompte
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="p-5 text-right">
-                      <div className="flex justify-end gap-2">
+                    <td className="px-3.5 py-2.5 text-right">
+                      <div className="flex justify-end gap-1">
                         <button
                           title="Gérer / Éditer"
                           onClick={() => setSelectedStayId(inv.stay_id)}
-                          className="p-3 text-stone-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-2xl transition-all"
+                          className="p-1.5 text-stone-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
                         >
-                          <Edit size={20} />
+                          <Edit size={15} />
                         </button>
                         <button
                           title="Supprimer"
@@ -7784,9 +8225,9 @@ function AllInvoicesView({
                               true,
                             );
                           }}
-                          className="p-3 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                          className="p-1.5 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                         >
-                          <Trash2 size={20} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>
@@ -7795,14 +8236,14 @@ function AllInvoicesView({
               })}
               {filteredInvoices.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-20 text-center">
-                    <div className="bg-stone-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <FileText className="text-stone-300" size={40} />
+                  <td colSpan={6} className="p-10 text-center">
+                    <div className="bg-stone-50 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <FileText className="text-stone-300" size={24} />
                     </div>
-                    <h4 className="text-stone-900 font-bold">
+                    <h4 className="text-sm text-stone-900 font-bold">
                       Aucune facturation
                     </h4>
-                    <p className="text-stone-400 text-sm">
+                    <p className="text-stone-400 text-xs">
                       Ajustez vos filtres ou créez votre première facture.
                     </p>
                   </td>
@@ -7830,14 +8271,16 @@ function NavItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all duration-150 whitespace-nowrap ${
         active
-          ? "bg-emerald-600 text-white shadow-md shadow-emerald-200"
-          : "text-stone-500 hover:bg-stone-100 hover:text-stone-900"
+          ? "bg-[#EFF4F0] text-[#13382C] font-semibold shadow-sm"
+          : "text-[#C7DCD1] hover:bg-white/10 hover:text-white font-medium"
       }`}
     >
-      {icon}
-      <span className="font-medium">{label}</span>
+      <span className={active ? "text-emerald-700" : "text-amber-200/80"}>
+        {icon}
+      </span>
+      <span className="truncate">{label}</span>
     </button>
   );
 }
