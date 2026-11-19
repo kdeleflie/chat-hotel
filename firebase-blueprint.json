@@ -104,6 +104,20 @@
       "properties": {
         "value": { "type": "string" }
       }
+    },
+    "BillingAdjustment": {
+      "title": "Billing Adjustment",
+      "description": "Complementary billing entries stored separately from official invoices",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "maxLength": 20 },
+        "client_id": { "type": "string", "maxLength": 128 },
+        "client_name": { "type": "string", "maxLength": 200 },
+        "comment": { "type": "string", "maxLength": 2000 },
+        "amount": { "type": "number" },
+        "created_at": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["date", "client_id", "amount"]
     }
   },
   "firestore": {
@@ -134,6 +148,10 @@
     "/settings/{settingKey}": {
       "schema": "SystemSetting",
       "description": "Store settings like logo"
+    },
+    "/billing_adjustments/{entryId}": {
+      "schema": "BillingAdjustment",
+      "description": "Store complementary billing entries synchronized across devices"
     }
   }
 }

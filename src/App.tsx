@@ -127,6 +127,16 @@ export interface InvoiceStatusConfig {
   bg: string;
 }
 
+export interface BillingAdjustment {
+  id: string;
+  date: string;
+  client_id: string;
+  client_name?: string;
+  comment: string;
+  amount: number;
+  created_at?: string;
+}
+
 export interface Settings {
   logo?: string;
   total_boxes?: string;
@@ -185,7 +195,10 @@ import { format, isValid } from "date-fns";
 import { fr } from "date-fns/locale";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { handleFirebaseApi as fetch } from "./firebaseInterceptor";
+import {
+  handleFirebaseApi as fetch,
+  subscribeBillingAdjustments,
+} from "./firebaseInterceptor";
 import DEFAULT_BRAND_LOGO from "./assets/images/chathotel_brand_logo_1794854269095.jpg";
 import LOGIN_HERO_IMAGE from "./assets/images/login_cat_lounge_1794854269604.jpg";
 
@@ -490,6 +503,14 @@ export default function App() {
   const [allInvoicesTabMonth, setAllInvoicesTabMonth] = useState<string | null>(
     null,
   );
+  const [showHiddenBillingMenu, setShowHiddenBillingMenu] = useState(false);
+  const lastBillingToggleRef = useRef<number>(0);
+  const toggleHiddenBillingMenu = () => {
+    const now = Date.now();
+    if (now - lastBillingToggleRef.current < 200) return;
+    lastBillingToggleRef.current = now;
+    setShowHiddenBillingMenu((prev) => !prev);
+  };
   const [focusSettingId, setFocusSettingId] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
@@ -899,9 +920,23 @@ export default function App() {
 
           <NavItem
             active={activeTab === "all-invoices"}
-            onClick={() => {
+            onClick={(e) => {
+              const hasModifier =
+                e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
+              if (hasModifier) {
+                e.preventDefault();
+                toggleHiddenBillingMenu();
+              }
               setActiveTab("all-invoices");
               setIsMenuOpen(false);
+            }}
+            onContextMenu={(e) => {
+              if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
+                e.preventDefault();
+                toggleHiddenBillingMenu();
+                setActiveTab("all-invoices");
+                setIsMenuOpen(false);
+              }
             }}
             icon={<Receipt size={16} />}
             label="Facturations"
@@ -1104,10 +1139,12 @@ export default function App() {
             settings={settings}
             onUpdate={fetchData}
             stays={stays}
+            clients={clients}
             showToast={showToast}
             askConfirm={askConfirm}
             initialMonth={allInvoicesTabMonth}
             onClearInitialMonth={() => setAllInvoicesTabMonth(null)}
+            showHiddenMenu={showHiddenBillingMenu}
           />
         )}
         {activeTab === "daily-tracking" && (
@@ -7971,32 +8008,102 @@ function ContractsView({
   );
 }
 
+const BILLING_MONTH_OPTIONS = [
+  { value: "01", label: "Janvier" },
+  { value: "02", label: "Février" },
+  { value: "03", label: "Mars" },
+  { value: "04", label: "Avril" },
+  { value: "05", label: "Mai" },
+  { value: "06", label: "Juin" },
+  { value: "07", label: "Juillet" },
+  { value: "08", label: "Août" },
+  { value: "09", label: "Septembre" },
+  { value: "10", label: "Octobre" },
+  { value: "11", label: "Novembre" },
+  { value: "12", label: "Décembre" },
+];
+
+const BILLING_QUARTER_OPTIONS = [
+  { value: 1, label: "T1 (Jan - Mar)" },
+  { value: 2, label: "T2 (Avr - Jun)" },
+  { value: 3, label: "T3 (Jul - Sep)" },
+  { value: 4, label: "T4 (Oct - Déc)" },
+];
+
+const matchesBillingPeriod = (
+  dateStr: string | undefined,
+  mode: "month" | "quarter" | "year",
+  year: string,
+  month: string,
+  quarter: number,
+) => {
+  if (!dateStr || dateStr.length < 4) return false;
+  if (dateStr.substring(0, 4) !== year) return false;
+  if (mode === "year") return true;
+  const m = parseInt(dateStr.substring(5, 7), 10);
+  if (Number.isNaN(m)) return false;
+  if (mode === "month") return dateStr.substring(5, 7) === month;
+  const startMonth = (quarter - 1) * 3 + 1;
+  return m >= startMonth && m <= startMonth + 2;
+};
+
+const getInvoiceEncashedAmount = (inv: Invoice) => {
+  const isEncashed =
+    !inv.status || inv.status === "paid" || inv.status === "partially_paid";
+  if (!isEncashed) return 0;
+  return inv.type === "final"
+    ? inv.amount - (inv.deposit_amount || 0)
+    : inv.amount;
+};
+
 function AllInvoicesView({
   settings,
   onUpdate,
   stays,
+  clients,
   showToast,
   askConfirm,
   initialMonth,
   onClearInitialMonth,
+  showHiddenMenu = false,
 }: {
   settings: Settings;
   onUpdate: () => void;
   stays: Stay[];
+  clients: Client[];
   showToast: (m: string, t?: "success" | "error") => void;
   askConfirm: (t: string, m: string, c: () => void, d?: boolean) => void;
   initialMonth?: string | null;
   onClearInitialMonth?: () => void;
+  showHiddenMenu?: boolean;
 }) {
+  const now = new Date();
+  const currentYearStr = format(now, "yyyy");
+  const currentMonthStr = format(now, "MM");
+  const currentQuarterNum = Math.floor(now.getMonth() / 3) + 1;
+
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterMonth, setFilterMonth] = useState(
-    initialMonth || format(new Date(), "yyyy-MM"),
+  const [periodType, setPeriodType] = useState<"month" | "quarter" | "year">(
+    "month",
   );
+  const [selectedYear, setSelectedYear] = useState(
+    initialMonth && /^\d{4}-\d{2}$/.test(initialMonth)
+      ? initialMonth.substring(0, 4)
+      : currentYearStr,
+  );
+  const [selectedMonth, setSelectedMonth] = useState(
+    initialMonth && /^\d{4}-\d{2}$/.test(initialMonth)
+      ? initialMonth.substring(5, 7)
+      : currentMonthStr,
+  );
+  const [selectedQuarter, setSelectedQuarter] = useState(currentQuarterNum);
 
   useEffect(() => {
-    if (initialMonth) {
-      setFilterMonth(initialMonth);
+    if (initialMonth && /^\d{4}-\d{2}$/.test(initialMonth)) {
+      setPeriodType("month");
+      setSelectedYear(initialMonth.substring(0, 4));
+      setSelectedMonth(initialMonth.substring(5, 7));
       if (onClearInitialMonth) onClearInitialMonth();
     }
   }, [initialMonth]);
@@ -8005,6 +8112,20 @@ function AllInvoicesView({
   const [selectedStayId, setSelectedStayId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [searchStay, setSearchStay] = useState("");
+
+  // Hidden complementary menu state
+  const [hiddenEntries, setHiddenEntries] = useState<BillingAdjustment[]>([]);
+  const [entryDate, setEntryDate] = useState(format(now, "yyyy-MM-dd"));
+  const [entryClientId, setEntryClientId] = useState("");
+  const [entryComment, setEntryComment] = useState("");
+  const [entryAmount, setEntryAmount] = useState("");
+  const [savingEntry, setSavingEntry] = useState(false);
+  const [hiddenPeriodType, setHiddenPeriodType] = useState<
+    "month" | "quarter" | "year"
+  >("month");
+  const [hiddenYear, setHiddenYear] = useState(currentYearStr);
+  const [hiddenMonth, setHiddenMonth] = useState(currentMonthStr);
+  const [hiddenQuarter, setHiddenQuarter] = useState(currentQuarterNum);
 
   const fetchInvoices = async () => {
     try {
@@ -8021,28 +8142,181 @@ function AllInvoicesView({
     fetchInvoices();
   }, []);
 
+  useEffect(() => {
+    if (!showHiddenMenu) return;
+    const unsubscribe = subscribeBillingAdjustments((items) => {
+      setHiddenEntries(items);
+    });
+    return () => unsubscribe();
+  }, [showHiddenMenu]);
+
+  const sortedClients = useMemo(() => {
+    return [...clients].sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", "fr", { sensitivity: "base" }),
+    );
+  }, [clients]);
+
+  const availableInvoiceYears = useMemo(() => {
+    const years = new Set<string>([currentYearStr, selectedYear]);
+    invoices.forEach((inv) => {
+      const y = inv.created_at?.substring(0, 4);
+      if (y && /^\d{4}$/.test(y)) years.add(y);
+    });
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [invoices, currentYearStr, selectedYear]);
+
+  const availableHiddenYears = useMemo(() => {
+    const years = new Set<string>([currentYearStr, hiddenYear]);
+    invoices.forEach((inv) => {
+      const y = inv.created_at?.substring(0, 4);
+      if (y && /^\d{4}$/.test(y)) years.add(y);
+    });
+    hiddenEntries.forEach((entry) => {
+      const y = entry.date?.substring(0, 4);
+      if (y && /^\d{4}$/.test(y)) years.add(y);
+    });
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [invoices, hiddenEntries, currentYearStr, hiddenYear]);
+
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
-      const matchMonth = inv.created_at.startsWith(filterMonth);
+      const matchPeriod = matchesBillingPeriod(
+        inv.created_at,
+        periodType,
+        selectedYear,
+        selectedMonth,
+        selectedQuarter,
+      );
       const matchStatus = filterStatus === "all" || inv.status === filterStatus;
-      return matchMonth && matchStatus;
+      return matchPeriod && matchStatus;
     });
-  }, [invoices, filterMonth, filterStatus]);
+  }, [
+    invoices,
+    periodType,
+    selectedYear,
+    selectedMonth,
+    selectedQuarter,
+    filterStatus,
+  ]);
 
   const totalCA = useMemo(() => {
-    return filteredInvoices.reduce((acc, inv) => {
-      const isEncashed =
-        !inv.status || inv.status === "paid" || inv.status === "partially_paid";
-      if (isEncashed) {
-        const amount =
-          inv.type === "final"
-            ? inv.amount - (inv.deposit_amount || 0)
-            : inv.amount;
-        return acc + amount;
-      }
-      return acc;
-    }, 0);
+    return filteredInvoices.reduce(
+      (acc, inv) => acc + getInvoiceEncashedAmount(inv),
+      0,
+    );
   }, [filteredInvoices]);
+
+  const filteredHiddenEntries = useMemo(() => {
+    return hiddenEntries
+      .filter((entry) =>
+        matchesBillingPeriod(
+          entry.date,
+          hiddenPeriodType,
+          hiddenYear,
+          hiddenMonth,
+          hiddenQuarter,
+        ),
+      )
+      .sort((a, b) => {
+        const cmpDate = (b.date || "").localeCompare(a.date || "");
+        if (cmpDate !== 0) return cmpDate;
+        return (b.created_at || "").localeCompare(a.created_at || "");
+      });
+  }, [
+    hiddenEntries,
+    hiddenPeriodType,
+    hiddenYear,
+    hiddenMonth,
+    hiddenQuarter,
+  ]);
+
+  const hiddenPeriodTotal = useMemo(() => {
+    return filteredHiddenEntries.reduce(
+      (acc, entry) => acc + (Number(entry.amount) || 0),
+      0,
+    );
+  }, [filteredHiddenEntries]);
+
+  const officialPeriodCAForHidden = useMemo(() => {
+    return invoices
+      .filter((inv) =>
+        matchesBillingPeriod(
+          inv.created_at,
+          hiddenPeriodType,
+          hiddenYear,
+          hiddenMonth,
+          hiddenQuarter,
+        ),
+      )
+      .reduce((acc, inv) => acc + getInvoiceEncashedAmount(inv), 0);
+  }, [invoices, hiddenPeriodType, hiddenYear, hiddenMonth, hiddenQuarter]);
+
+  const combinedHiddenAndOfficialTotal =
+    hiddenPeriodTotal + officialPeriodCAForHidden;
+
+  const handleAddHiddenEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entryDate) {
+      showToast("Veuillez saisir une date", "error");
+      return;
+    }
+    if (!entryClientId) {
+      showToast("Veuillez sélectionner un client", "error");
+      return;
+    }
+    const parsedAmount = Number(entryAmount);
+    if (entryAmount.trim() === "" || Number.isNaN(parsedAmount)) {
+      showToast("Veuillez saisir un montant valide", "error");
+      return;
+    }
+
+    const selectedClient = clients.find(
+      (c) => String(c.id) === String(entryClientId),
+    );
+    setSavingEntry(true);
+    try {
+      const res = await fetch("/api/billing-adjustments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: entryDate,
+          client_id: entryClientId,
+          client_name: selectedClient?.name || "",
+          comment: entryComment.trim(),
+          amount: parsedAmount,
+          created_at: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setEntryComment("");
+      setEntryAmount("");
+      setEntryClientId("");
+      showToast("Entrée ajoutée !");
+    } catch {
+      showToast("Erreur lors de l'ajout de l'entrée", "error");
+    } finally {
+      setSavingEntry(false);
+    }
+  };
+
+  const handleDeleteHiddenEntry = (entry: BillingAdjustment) => {
+    askConfirm(
+      "Supprimer cette entrée ?",
+      "Voulez-vous supprimer définitivement cette ligne de la base de données ?",
+      async () => {
+        try {
+          const res = await fetch(`/api/billing-adjustments/${entry.id}`, {
+            method: "DELETE",
+          });
+          if (!res.ok) throw new Error();
+          showToast("Entrée supprimée !");
+        } catch {
+          showToast("Erreur lors de la suppression", "error");
+        }
+      },
+      true,
+    );
+  };
 
   const handleQuickPaid = async (inv: Invoice) => {
     try {
@@ -8222,15 +8496,70 @@ function AllInvoicesView({
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2] space-y-4">
-        <div className="flex flex-wrap items-center gap-2.5 bg-[#FAF8F4] border border-[#EDE6DA] p-1.5 rounded-xl">
-          <div className="flex-1 min-w-[180px] relative">
-            <input
-              type="month"
-              className="w-full p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all tabular-nums"
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-            />
+        <div className="flex flex-wrap items-center gap-2 bg-[#FAF8F4] border border-[#EDE6DA] p-1.5 rounded-xl">
+          <div className="inline-flex items-center rounded-lg bg-[#EFE9DD] p-0.5 border border-[#E4DDD1]">
+            {(
+              [
+                { id: "month", label: "Mois" },
+                { id: "quarter", label: "Trimestre" },
+                { id: "year", label: "Année" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setPeriodType(opt.id)}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
+                  periodType === opt.id
+                    ? "bg-[#13382C] text-white shadow-xs"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
+
+          {periodType === "month" && (
+            <select
+              className="min-w-[130px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+            >
+              {BILLING_MONTH_OPTIONS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {periodType === "quarter" && (
+            <select
+              className="min-w-[140px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
+              value={selectedQuarter}
+              onChange={(e) => setSelectedQuarter(Number(e.target.value))}
+            >
+              {BILLING_QUARTER_OPTIONS.map((q) => (
+                <option key={q.value} value={q.value}>
+                  {q.label}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <select
+            className="min-w-[95px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all tabular-nums"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+          >
+            {availableInvoiceYears.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+
           <select
             className="flex-1 min-w-[160px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
             value={filterStatus}
@@ -8394,6 +8723,265 @@ function AllInvoicesView({
           </table>
         </div>
       </div>
+
+      {showHiddenMenu && (
+        <section className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-2 border-emerald-900/20 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#EDE6DA]">
+            <div>
+              <h3 className="font-display text-base sm:text-lg font-semibold text-[#13382C] tracking-tight">
+                Suivi Complémentaire
+              </h3>
+              <p className="text-[11px] text-stone-500">
+                Registre privé synchronisé sur vos appareils (exclu des factures
+                officielles, statistiques et exports)
+              </p>
+            </div>
+            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#FAF8F4] border border-[#E4DDD1] text-stone-700 tabular-nums self-start sm:self-auto">
+              {filteredHiddenEntries.length} ligne
+              {filteredHiddenEntries.length > 1 ? "s" : ""} sur la période
+            </span>
+          </div>
+
+          {/* Quick-Add Form */}
+          <form
+            onSubmit={handleAddHiddenEntry}
+            className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end bg-[#FAF8F4] p-3 rounded-xl border border-[#EDE6DA]"
+          >
+            <div className="sm:col-span-2 space-y-1">
+              <label className="text-[10px] font-semibold text-stone-500 uppercase">
+                Date
+              </label>
+              <input
+                type="date"
+                required
+                className="w-full p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-medium text-stone-800 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 tabular-nums"
+                value={entryDate}
+                onChange={(e) => setEntryDate(e.target.value)}
+              />
+            </div>
+
+            <div className="sm:col-span-3 space-y-1">
+              <label className="text-[10px] font-semibold text-stone-500 uppercase">
+                Client
+              </label>
+              <select
+                required
+                className="w-full p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-medium text-stone-800 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20"
+                value={entryClientId}
+                onChange={(e) => setEntryClientId(e.target.value)}
+              >
+                <option value="">Sélectionner un client...</option>
+                {sortedClients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-4 space-y-1">
+              <label className="text-[10px] font-semibold text-stone-500 uppercase">
+                Commentaire
+              </label>
+              <input
+                type="text"
+                placeholder="Commentaire..."
+                className="w-full p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs text-stone-800 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20"
+                value={entryComment}
+                onChange={(e) => setEntryComment(e.target.value)}
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-1">
+              <label className="text-[10px] font-semibold text-stone-500 uppercase">
+                Montant (€)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                placeholder="0.00"
+                className="w-full p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-800 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 tabular-nums"
+                value={entryAmount}
+                onChange={(e) => setEntryAmount(e.target.value)}
+              />
+            </div>
+
+            <div className="sm:col-span-1 flex justify-end">
+              <button
+                type="submit"
+                disabled={savingEntry}
+                title="Ajouter la ligne"
+                aria-label="Ajouter la ligne"
+                className="w-full sm:w-10 h-[34px] bg-[#13382C] hover:bg-[#0E2B22] text-white rounded-lg font-semibold flex items-center justify-center transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+          </form>
+
+          {/* Period Filter Bar */}
+          <div className="flex flex-wrap items-center gap-2 bg-[#FAF8F4] border border-[#EDE6DA] p-1.5 rounded-xl">
+            <div className="inline-flex items-center rounded-lg bg-[#EFE9DD] p-0.5 border border-[#E4DDD1]">
+              {(
+                [
+                  { id: "month", label: "Mois" },
+                  { id: "quarter", label: "Trimestre" },
+                  { id: "year", label: "Année" },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setHiddenPeriodType(opt.id)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
+                    hiddenPeriodType === opt.id
+                      ? "bg-[#13382C] text-white shadow-xs"
+                      : "text-stone-600 hover:text-stone-900"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {hiddenPeriodType === "month" && (
+              <select
+                className="min-w-[130px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20"
+                value={hiddenMonth}
+                onChange={(e) => setHiddenMonth(e.target.value)}
+              >
+                {BILLING_MONTH_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {hiddenPeriodType === "quarter" && (
+              <select
+                className="min-w-[140px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20"
+                value={hiddenQuarter}
+                onChange={(e) => setHiddenQuarter(Number(e.target.value))}
+              >
+                {BILLING_QUARTER_OPTIONS.map((q) => (
+                  <option key={q.value} value={q.value}>
+                    {q.label}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <select
+              className="min-w-[95px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 tabular-nums"
+              value={hiddenYear}
+              onChange={(e) => setHiddenYear(e.target.value)}
+            >
+              {availableHiddenYears.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Entries Table */}
+          <div className="overflow-x-auto rounded-xl border border-[#EDE6DA]">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="bg-[#F4F0E8] border-b border-[#E5DED2] text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
+                  <th className="px-3.5 py-2.5">Date</th>
+                  <th className="px-3.5 py-2.5">Client</th>
+                  <th className="px-3.5 py-2.5">Commentaire</th>
+                  <th className="px-3.5 py-2.5 text-right">Montant</th>
+                  <th className="px-3.5 py-2.5 text-right w-14">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F0E9DC]">
+                {filteredHiddenEntries.map((entry) => {
+                  const matchedClient = clients.find(
+                    (c) => String(c.id) === String(entry.client_id),
+                  );
+                  const displayClient =
+                    matchedClient?.name || entry.client_name || "Client inconnu";
+                  return (
+                    <tr
+                      key={entry.id}
+                      className="hover:bg-[#FAF8F4] transition-colors"
+                    >
+                      <td className="px-3.5 py-2.5 text-xs text-stone-600 font-medium tabular-nums whitespace-nowrap">
+                        {formatDateSafe(entry.date)}
+                      </td>
+                      <td className="px-3.5 py-2.5 font-semibold text-stone-800">
+                        {displayClient}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-stone-600">
+                        {entry.comment || (
+                          <span className="text-stone-300">-</span>
+                        )}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right font-bold text-stone-900 tabular-nums whitespace-nowrap">
+                        {(Number(entry.amount) || 0).toFixed(2)} €
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right">
+                        <button
+                          type="button"
+                          title="Supprimer"
+                          onClick={() => handleDeleteHiddenEntry(entry)}
+                          className="p-1.5 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredHiddenEntries.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="p-6 text-center text-xs text-stone-400"
+                    >
+                      Aucune entrée sur cette période.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Summary Footer (Always visible) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div className="p-3.5 rounded-xl bg-[#FAF8F4] border border-[#E5DED2] flex flex-col justify-between">
+              <span className="text-[11px] font-semibold text-stone-500 uppercase">
+                Total période
+              </span>
+              <span className="text-lg font-bold text-stone-900 tabular-nums mt-1">
+                {hiddenPeriodTotal.toFixed(2)} €
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex flex-col justify-between">
+              <span className="text-[11px] font-semibold text-amber-800 uppercase">
+                Chiffre d'affaires (période)
+              </span>
+              <span className="text-lg font-bold text-amber-950 tabular-nums mt-1">
+                {officialPeriodCAForHidden.toFixed(2)} €
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-[#13382C] text-white border border-[#13382C] flex flex-col justify-between shadow-xs">
+              <span className="text-[11px] font-semibold text-emerald-200 uppercase">
+                Total cumulé (Période + CA)
+              </span>
+              <span className="text-lg font-bold text-white tabular-nums mt-1">
+                {combinedHiddenAndOfficialTotal.toFixed(2)} €
+              </span>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -8401,17 +8989,20 @@ function AllInvoicesView({
 function NavItem({
   active,
   onClick,
+  onContextMenu,
   icon,
   label,
 }: {
   active: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onContextMenu?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   icon: React.ReactNode;
   label: string;
 }) {
   return (
     <button
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all duration-150 whitespace-nowrap ${
         active
           ? "bg-[#EFF4F0] text-[#13382C] font-semibold shadow-sm"

@@ -149,5 +149,24 @@ service cloud.firestore {
         && data.type is string
         && data.url is string;
     }
+
+    // --- Collection: Billing Adjustments ---
+    match /billing_adjustments/{entryId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidId(entryId) && isValidBillingAdjustment(incoming());
+      allow update: if isAdmin() && isValidId(entryId) && isValidBillingAdjustment(incoming());
+      allow delete: if isAdmin() && isValidId(entryId);
+    }
+
+    function isValidBillingAdjustment(data) {
+      return data.keys().hasAll(['date', 'client_id', 'amount'])
+        && data.keys().hasOnly(['date', 'client_id', 'client_name', 'comment', 'amount', 'created_at'])
+        && data.date is string && data.date.size() > 0 && data.date.size() <= 20
+        && data.client_id is string && data.client_id.size() > 0 && data.client_id.size() <= 128
+        && (!('client_name' in data) || (data.client_name is string && data.client_name.size() <= 200))
+        && (!('comment' in data) || (data.comment is string && data.comment.size() <= 2000))
+        && (data.amount is number || data.amount is int)
+        && (!('created_at' in data) || (data.created_at is string && data.created_at.size() <= 50));
+    }
   }
 }

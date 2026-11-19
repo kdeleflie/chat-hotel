@@ -78,6 +78,48 @@ async function getCachedDocs(colName: string): Promise<QuerySnapshot> {
   return cacheWaits[colName];
 }
 
+const BILLING_ADJUSTMENTS_CACHE_KEY = 'chathotel_billing_adjustments_cache';
+
+const saveBillingAdjustmentsLocalCache = (items: any[]) => {
+  try {
+    localStorage.setItem(BILLING_ADJUSTMENTS_CACHE_KEY, JSON.stringify(items));
+  } catch {
+    // Ignore storage quota errors
+  }
+};
+
+export const readBillingAdjustmentsLocalCache = (): any[] => {
+  try {
+    const raw = localStorage.getItem(BILLING_ADJUSTMENTS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+export const subscribeBillingAdjustments = (
+  onUpdate: (entries: any[]) => void,
+): (() => void) => {
+  const cached = readBillingAdjustmentsLocalCache();
+  if (cached.length > 0) {
+    onUpdate(cached);
+  }
+  return onSnapshot(
+    collection(db, 'billing_adjustments'),
+    (snap) => {
+      CACHE['billing_adjustments'] = snap;
+      const items = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+      saveBillingAdjustmentsLocalCache(items);
+      onUpdate(items);
+    },
+    (err) => {
+      handleFirestoreError(err, OperationType.GET, 'billing_adjustments');
+    },
+  );
+};
+
 export const handleFirebaseApi = async (url: string, init?: RequestInit): Promise<Response> => {
   const method = init?.method || 'GET';
   const parsedUrl = new URL(url, window.location.origin);
@@ -826,10 +868,47 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
       // Note: POST to /api/media handled above for FormData case.
     }
 
+    // --- BILLING ADJUSTMENTS (ISOLATED COMPLEMENTARY ENTRIES) ---
+    if (path === '/api/billing-adjustments') {
+      if (method === 'GET') {
+        const snap = await getCachedDocs('billing_adjustments');
+        const items = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        saveBillingAdjustmentsLocalCache(items);
+        return jsonResponse(items);
+      }
+      if (method === 'POST') {
+        try {
+          const payload = {
+            date: String(body?.date || '').slice(0, 20),
+            client_id: String(body?.client_id || '').slice(0, 128),
+            client_name: String(body?.client_name || '').slice(0, 200),
+            comment: String(body?.comment || '').slice(0, 2000),
+            amount: Number(body?.amount) || 0,
+            created_at: String(body?.created_at || new Date().toISOString()).slice(0, 50),
+          };
+          const docRef = await addDoc(collection(db, 'billing_adjustments'), payload);
+          return jsonResponse({ id: docRef.id, ...payload });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.CREATE, 'billing_adjustments');
+        }
+      }
+    }
+    if (path.startsWith('/api/billing-adjustments/')) {
+      const id = path.split('/').pop()!;
+      if (method === 'DELETE') {
+        try {
+          await deleteDoc(doc(db, 'billing_adjustments', id));
+          return jsonResponse({ success: true });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `billing_adjustments/${id}`);
+        }
+      }
+    }
+
     // --- BACKUP ---
     if (path === '/api/backup') {
       const full = searchParams.get('full') === 'true';
-      const collections = ['clients', 'cats', 'stays', 'health_logs', 'invoices', 'settings'];
+      const collections = ['clients', 'cats', 'stays', 'health_logs', 'invoices', 'settings', 'billing_adjustments'];
       if (full) collections.push('media');
       
       const backupData: any = {};
@@ -844,16 +923,26 @@ export const handleFirebaseApi = async (url: string, init?: RequestInit): Promis
     if (path === '/api/restore') {
       if (method === 'POST') {
         const logs: string[] = ["Démarrage de la restauration Cloud..."];
-        const collections = ['clients', 'cats', 'stays', 'health_logs', 'invoices', 'settings', 'media'];
+        const collections = ['clients', 'cats', 'stays', 'health_logs', 'invoices', 'settings', 'billing_adjustments', 'media'];
         
         for (const col of collections) {
           if (body[col] && Array.isArray(body[col])) {
             logs.push(`Injection de ${body[col].length} entrées dans ${col}...`);
             for (const item of body[col]) {
               const { id, ...data } = item;
+              const docData = col === 'billing_adjustments'
+                ? {
+                    date: String(data.date || '').slice(0, 20),
+                    client_id: String(data.client_id || '').slice(0, 128),
+                    client_name: String(data.client_name || '').slice(0, 200),
+                    comment: String(data.comment || '').slice(0, 2000),
+                    amount: Number(data.amount) || 0,
+                    created_at: String(data.created_at || new Date().toISOString()).slice(0, 50),
+                  }
+                : data;
               // On utilise setDoc pour préserver les IDs et maintenir les relations (très important)
               try {
-                await setDoc(doc(db, col, id.toString()), data);
+                await setDoc(doc(db, col, id.toString()), docData);
               } catch (err) {
                 handleFirestoreError(err, OperationType.WRITE, `${col}/${id}`);
               }
