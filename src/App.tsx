@@ -505,6 +505,7 @@ export default function App() {
   );
   const [showHiddenBillingMenu, setShowHiddenBillingMenu] = useState(false);
   const lastBillingToggleRef = useRef<number>(0);
+  const billingModifierDownRef = useRef<boolean>(false);
   const toggleHiddenBillingMenu = () => {
     const now = Date.now();
     if (now - lastBillingToggleRef.current < 200) return;
@@ -920,19 +921,38 @@ export default function App() {
 
           <NavItem
             active={activeTab === "all-invoices"}
+            onPointerDown={(e) => {
+              billingModifierDownRef.current = Boolean(
+                e.metaKey || e.ctrlKey || e.shiftKey || e.altKey,
+              );
+            }}
             onClick={(e) => {
               const hasModifier =
-                e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
+                e.metaKey ||
+                e.ctrlKey ||
+                e.shiftKey ||
+                e.altKey ||
+                billingModifierDownRef.current;
+              billingModifierDownRef.current = false;
               if (hasModifier) {
                 e.preventDefault();
+                e.stopPropagation();
                 toggleHiddenBillingMenu();
               }
               setActiveTab("all-invoices");
               setIsMenuOpen(false);
             }}
             onContextMenu={(e) => {
-              if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
+              const hasModifier =
+                e.metaKey ||
+                e.ctrlKey ||
+                e.shiftKey ||
+                e.altKey ||
+                billingModifierDownRef.current;
+              if (hasModifier) {
                 e.preventDefault();
+                e.stopPropagation();
+                billingModifierDownRef.current = false;
                 toggleHiddenBillingMenu();
                 setActiveTab("all-invoices");
                 setIsMenuOpen(false);
@@ -8127,10 +8147,13 @@ function AllInvoicesView({
   const [hiddenMonth, setHiddenMonth] = useState(currentMonthStr);
   const [hiddenQuarter, setHiddenQuarter] = useState(currentQuarterNum);
 
+  const hiddenSectionRef = useRef<HTMLElement | null>(null);
+
   const fetchInvoices = async () => {
     try {
       const res = await fetch("/api/invoices/all");
-      setInvoices(await res.json());
+      const data = await res.json();
+      setInvoices(Array.isArray(data) ? data : []);
     } catch (err) {
       showToast("Erreur lors de la récupération des factures", "error");
     } finally {
@@ -8147,7 +8170,16 @@ function AllInvoicesView({
     const unsubscribe = subscribeBillingAdjustments((items) => {
       setHiddenEntries(items);
     });
-    return () => unsubscribe();
+    const timer = setTimeout(() => {
+      hiddenSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }, 60);
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, [showHiddenMenu]);
 
   const sortedClients = useMemo(() => {
@@ -8495,237 +8527,11 @@ function AllInvoicesView({
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2] space-y-4">
-        <div className="flex flex-wrap items-center gap-2 bg-[#FAF8F4] border border-[#EDE6DA] p-1.5 rounded-xl">
-          <div className="inline-flex items-center rounded-lg bg-[#EFE9DD] p-0.5 border border-[#E4DDD1]">
-            {(
-              [
-                { id: "month", label: "Mois" },
-                { id: "quarter", label: "Trimestre" },
-                { id: "year", label: "Année" },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setPeriodType(opt.id)}
-                className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
-                  periodType === opt.id
-                    ? "bg-[#13382C] text-white shadow-xs"
-                    : "text-stone-600 hover:text-stone-900"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {periodType === "month" && (
-            <select
-              className="min-w-[130px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-            >
-              {BILLING_MONTH_OPTIONS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {periodType === "quarter" && (
-            <select
-              className="min-w-[140px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
-              value={selectedQuarter}
-              onChange={(e) => setSelectedQuarter(Number(e.target.value))}
-            >
-              {BILLING_QUARTER_OPTIONS.map((q) => (
-                <option key={q.value} value={q.value}>
-                  {q.label}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <select
-            className="min-w-[95px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all tabular-nums"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-          >
-            {availableInvoiceYears.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="flex-1 min-w-[160px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="all">Tous les statuts</option>
-            {Object.entries(
-              settings.invoice_statuses || DEFAULT_INVOICE_STATUS_LABELS,
-            ).map(([val, config]) => (
-              <option key={val} value={val}>
-                {config.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="overflow-x-auto rounded-xl border border-[#EDE6DA]">
-          <table className="w-full text-left border-collapse text-[13px]">
-            <thead>
-              <tr className="bg-[#F4F0E8] border-b border-[#E5DED2] text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
-                <th className="px-3.5 py-2.5">Date</th>
-                <th className="px-3.5 py-2.5">N° Facture</th>
-                <th className="px-3.5 py-2.5">Client / Animal</th>
-                <th className="px-3.5 py-2.5">Statut / Paiement</th>
-                <th className="px-3.5 py-2.5">Montant</th>
-                <th className="px-3.5 py-2.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F0E9DC]">
-              {filteredInvoices.map((inv) => {
-                const statusConfig = getInvoiceStatusConfig(
-                  inv.status,
-                  settings,
-                );
-                return (
-                  <tr
-                    key={inv.id}
-                    className="hover:bg-[#FAF8F4] transition-colors group"
-                  >
-                    <td className="px-3.5 py-2.5 text-xs text-stone-500 font-medium tabular-nums">
-                      {formatDateSafe(inv.created_at)}
-                    </td>
-                    <td className="px-3.5 py-2.5 font-semibold text-stone-900 tabular-nums">
-                      {inv.invoice_number}
-                    </td>
-                    <td className="px-3.5 py-2.5">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-stone-800">
-                          {inv.owner_name || "-"}
-                        </span>
-                        <span className="text-[11px] text-stone-500">
-                          {inv.cat_name || "-"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3.5 py-2.5">
-                      <div className="flex flex-col gap-0.5">
-                        <div
-                          onClick={() =>
-                            inv.status === "partially_paid" &&
-                            handleQuickPaid(inv)
-                          }
-                          className={`px-2 py-0.5 rounded-md text-[11px] font-semibold w-fit flex items-center gap-1 border transition-all cursor-default ${inv.status === "partially_paid" ? "hover:bg-emerald-600 hover:text-white hover:border-emerald-600 cursor-pointer" : ""} ${statusConfig.bg} ${statusConfig.color} border-current/20`}
-                          title={
-                            inv.status === "partially_paid"
-                              ? "Cliquer pour marquer comme Payé"
-                              : ""
-                          }
-                        >
-                          {inv.status === "partially_paid" && (
-                            <CreditCard size={11} />
-                          )}
-                          {statusConfig.label}
-                        </div>
-                        {inv.payment_method && (
-                          <span className="text-[10px] text-stone-400 font-medium ml-0.5">
-                            {inv.payment_method}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3.5 py-2.5 tabular-nums">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-stone-900 text-sm">
-                          {inv.type === "final"
-                            ? (inv.amount - (inv.deposit_amount || 0)).toFixed(
-                                2,
-                              )
-                            : inv.amount.toFixed(2)}{" "}
-                          €
-                        </span>
-                        {inv.type === "final" && (
-                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
-                            Final (Acompte déduit)
-                          </span>
-                        )}
-                        {inv.type === "deposit" && (
-                          <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
-                            Acompte
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3.5 py-2.5 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          title="Gérer / Éditer"
-                          onClick={() => setSelectedStayId(inv.stay_id)}
-                          className="p-1.5 text-stone-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                        >
-                          <Edit size={15} />
-                        </button>
-                        <button
-                          title="Supprimer"
-                          onClick={() => {
-                            askConfirm(
-                              "Supprimer la facture ?",
-                              "Supprimer définitivement cette facture ? Cela impactera le CA.",
-                              async () => {
-                                try {
-                                  const res = await fetch(
-                                    `/api/invoices/${inv.id}`,
-                                    { method: "DELETE" },
-                                  );
-                                  if (!res.ok) throw new Error();
-                                  showToast("Facture supprimée !");
-                                  fetchInvoices();
-                                  onUpdate();
-                                } catch (err) {
-                                  showToast("Erreur suppression", "error");
-                                }
-                              },
-                              true,
-                            );
-                          }}
-                          className="p-1.5 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filteredInvoices.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="p-10 text-center">
-                    <div className="bg-stone-50 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <FileText className="text-stone-300" size={24} />
-                    </div>
-                    <h4 className="text-sm text-stone-900 font-bold">
-                      Aucune facturation
-                    </h4>
-                    <p className="text-stone-400 text-xs">
-                      Ajustez vos filtres ou créez votre première facture.
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       {showHiddenMenu && (
-        <section className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-2 border-emerald-900/20 space-y-4">
+        <section
+          ref={hiddenSectionRef}
+          className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-2 border-emerald-900/20 space-y-4"
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#EDE6DA]">
             <div>
               <h3 className="font-display text-base sm:text-lg font-semibold text-[#13382C] tracking-tight">
@@ -8982,6 +8788,235 @@ function AllInvoicesView({
           </div>
         </section>
       )}
+
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#E5DED2] space-y-4">
+        <div className="flex flex-wrap items-center gap-2 bg-[#FAF8F4] border border-[#EDE6DA] p-1.5 rounded-xl">
+          <div className="inline-flex items-center rounded-lg bg-[#EFE9DD] p-0.5 border border-[#E4DDD1]">
+            {(
+              [
+                { id: "month", label: "Mois" },
+                { id: "quarter", label: "Trimestre" },
+                { id: "year", label: "Année" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setPeriodType(opt.id)}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
+                  periodType === opt.id
+                    ? "bg-[#13382C] text-white shadow-xs"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {periodType === "month" && (
+            <select
+              className="min-w-[130px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+            >
+              {BILLING_MONTH_OPTIONS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {periodType === "quarter" && (
+            <select
+              className="min-w-[140px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
+              value={selectedQuarter}
+              onChange={(e) => setSelectedQuarter(Number(e.target.value))}
+            >
+              {BILLING_QUARTER_OPTIONS.map((q) => (
+                <option key={q.value} value={q.value}>
+                  {q.label}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <select
+            className="min-w-[95px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all tabular-nums"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+          >
+            {availableInvoiceYears.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="flex-1 min-w-[160px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="all">Tous les statuts</option>
+            {Object.entries(
+              settings.invoice_statuses || DEFAULT_INVOICE_STATUS_LABELS,
+            ).map(([val, config]) => (
+              <option key={val} value={val}>
+                {config.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-[#EDE6DA]">
+          <table className="w-full text-left border-collapse text-[13px]">
+            <thead>
+              <tr className="bg-[#F4F0E8] border-b border-[#E5DED2] text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
+                <th className="px-3.5 py-2.5">Date</th>
+                <th className="px-3.5 py-2.5">N° Facture</th>
+                <th className="px-3.5 py-2.5">Client / Animal</th>
+                <th className="px-3.5 py-2.5">Statut / Paiement</th>
+                <th className="px-3.5 py-2.5">Montant</th>
+                <th className="px-3.5 py-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F0E9DC]">
+              {filteredInvoices.map((inv) => {
+                const statusConfig = getInvoiceStatusConfig(
+                  inv.status,
+                  settings,
+                );
+                return (
+                  <tr
+                    key={inv.id}
+                    className="hover:bg-[#FAF8F4] transition-colors group"
+                  >
+                    <td className="px-3.5 py-2.5 text-xs text-stone-500 font-medium tabular-nums">
+                      {formatDateSafe(inv.created_at)}
+                    </td>
+                    <td className="px-3.5 py-2.5 font-semibold text-stone-900 tabular-nums">
+                      {inv.invoice_number}
+                    </td>
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-stone-800">
+                          {inv.owner_name || "-"}
+                        </span>
+                        <span className="text-[11px] text-stone-500">
+                          {inv.cat_name || "-"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex flex-col gap-0.5">
+                        <div
+                          onClick={() =>
+                            inv.status === "partially_paid" &&
+                            handleQuickPaid(inv)
+                          }
+                          className={`px-2 py-0.5 rounded-md text-[11px] font-semibold w-fit flex items-center gap-1 border transition-all cursor-default ${inv.status === "partially_paid" ? "hover:bg-emerald-600 hover:text-white hover:border-emerald-600 cursor-pointer" : ""} ${statusConfig.bg} ${statusConfig.color} border-current/20`}
+                          title={
+                            inv.status === "partially_paid"
+                              ? "Cliquer pour marquer comme Payé"
+                              : ""
+                          }
+                        >
+                          {inv.status === "partially_paid" && (
+                            <CreditCard size={11} />
+                          )}
+                          {statusConfig.label}
+                        </div>
+                        {inv.payment_method && (
+                          <span className="text-[10px] text-stone-400 font-medium ml-0.5">
+                            {inv.payment_method}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-2.5 tabular-nums">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-stone-900 text-sm">
+                          {inv.type === "final"
+                            ? (inv.amount - (inv.deposit_amount || 0)).toFixed(
+                                2,
+                              )
+                            : inv.amount.toFixed(2)}{" "}
+                          €
+                        </span>
+                        {inv.type === "final" && (
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
+                            Final (Acompte déduit)
+                          </span>
+                        )}
+                        {inv.type === "deposit" && (
+                          <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
+                            Acompte
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-2.5 text-right">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          title="Gérer / Éditer"
+                          onClick={() => setSelectedStayId(inv.stay_id)}
+                          className="p-1.5 text-stone-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                        >
+                          <Edit size={15} />
+                        </button>
+                        <button
+                          title="Supprimer"
+                          onClick={() => {
+                            askConfirm(
+                              "Supprimer la facture ?",
+                              "Supprimer définitivement cette facture ? Cela impactera le CA.",
+                              async () => {
+                                try {
+                                  const res = await fetch(
+                                    `/api/invoices/${inv.id}`,
+                                    { method: "DELETE" },
+                                  );
+                                  if (!res.ok) throw new Error();
+                                  showToast("Facture supprimée !");
+                                  fetchInvoices();
+                                  onUpdate();
+                                } catch (err) {
+                                  showToast("Erreur suppression", "error");
+                                }
+                              },
+                              true,
+                            );
+                          }}
+                          className="p-1.5 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredInvoices.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-10 text-center">
+                    <div className="bg-stone-50 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <FileText className="text-stone-300" size={24} />
+                    </div>
+                    <h4 className="text-sm text-stone-900 font-bold">
+                      Aucune facturation
+                    </h4>
+                    <p className="text-stone-400 text-xs">
+                      Ajustez vos filtres ou créez votre première facture.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -8989,12 +9024,14 @@ function AllInvoicesView({
 function NavItem({
   active,
   onClick,
+  onPointerDown,
   onContextMenu,
   icon,
   label,
 }: {
   active: boolean;
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onPointerDown?: (e: React.PointerEvent<HTMLButtonElement>) => void;
   onContextMenu?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   icon: React.ReactNode;
   label: string;
@@ -9002,6 +9039,7 @@ function NavItem({
   return (
     <button
       onClick={onClick}
+      onPointerDown={onPointerDown}
       onContextMenu={onContextMenu}
       className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all duration-150 whitespace-nowrap ${
         active

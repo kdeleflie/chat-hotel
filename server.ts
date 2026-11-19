@@ -942,6 +942,7 @@ async function startServer() {
     console.log("Vite middleware attached.");
   } else {
     console.log("Serving production build...");
+    app.use("/chat-hotel", express.static(path.join(__dirname, "dist")));
     app.use(express.static(path.join(__dirname, "dist")));
     app.get("*", (req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
