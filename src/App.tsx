@@ -3089,37 +3089,68 @@ function InvoiceSection({
       )}
 
       <div className="space-y-2">
-        {invoices.map((inv) => {
-          const statusConfig = getInvoiceStatusConfig(inv.status, settings);
-          return (
-            <div
-              key={inv.id}
-              className={`flex justify-between items-center p-3 bg-white border border-stone-100 rounded-xl group relative ${inv.type === "deposit" ? "border-l-4 border-l-orange-400" : inv.type === "final" ? "border-l-4 border-l-emerald-600" : ""}`}
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-bold text-sm">
-                    {inv.type === "final"
-                      ? (inv.amount - (inv.deposit_amount || 0)).toFixed(2)
-                      : inv.amount.toFixed(2)}{" "}
-                    €
-                  </p>
-                  {inv.type === "deposit" && (
-                    <span className="text-[8px] bg-orange-100 text-orange-700 px-1 rounded font-bold uppercase">
-                      Acompte
+        {(() => {
+          const isStaySettled = invoices.some(
+            (i) =>
+              i.type === "final" &&
+              (i.status === "paid" || i.status === "refunded"),
+          );
+          return invoices.map((inv) => {
+            const statusConfig = getInvoiceStatusConfig(inv.status, settings);
+            const isDepositPaid =
+              inv.type === "deposit" &&
+              (inv.status === "paid" || inv.status === "refunded");
+            const borderClass =
+              inv.type === "deposit"
+                ? isDepositPaid && isStaySettled
+                  ? "border-l-4 border-l-emerald-600"
+                  : isDepositPaid
+                    ? "border-l-4 border-l-stone-300"
+                    : "border-l-4 border-l-orange-400"
+                : inv.type === "final"
+                  ? "border-l-4 border-l-emerald-600"
+                  : "";
+            return (
+              <div
+                key={inv.id}
+                className={`flex justify-between items-center p-3 bg-white border border-stone-100 rounded-xl group relative ${borderClass}`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-sm">
+                      {inv.type === "final"
+                        ? (inv.amount - (inv.deposit_amount || 0)).toFixed(2)
+                        : inv.amount.toFixed(2)}{" "}
+                      €
+                    </p>
+                    {inv.type === "deposit" && (
+                      <span
+                        className={`text-[8px] px-1 rounded font-bold uppercase ${
+                          isDepositPaid && isStaySettled
+                            ? "bg-emerald-100 text-emerald-700"
+                            : isDepositPaid
+                              ? "bg-stone-100 text-stone-600"
+                              : "bg-orange-100 text-orange-700"
+                        }`}
+                      >
+                        {isDepositPaid && isStaySettled
+                          ? "Acompte · Soldé"
+                          : isDepositPaid
+                            ? "Acompte · Réglé"
+                            : "Acompte"}
+                      </span>
+                    )}
+                    {inv.type === "final" && (
+                      <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold uppercase">
+                        Finale
+                      </span>
+                    )}
+                    <span
+                      className={`text-[8px] ${statusConfig.bg} ${statusConfig.color} px-1 rounded font-bold uppercase`}
+                    >
+                      {statusConfig.label}
                     </span>
-                  )}
-                  {inv.type === "final" && (
-                    <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold uppercase">
-                      Finale
-                    </span>
-                  )}
-                  <span
-                    className={`text-[8px] ${statusConfig.bg} ${statusConfig.color} px-1 rounded font-bold uppercase`}
-                  >
-                    {statusConfig.label}
-                  </span>
-                </div>
+                  </div>
                 <p className="text-[10px] text-stone-400 uppercase font-bold flex items-center gap-1">
                   {inv.invoice_number} • {inv.service_type}
                   {inv.payment_method && (
@@ -3235,7 +3266,8 @@ function InvoiceSection({
               </div>
             </div>
           );
-        })}
+          });
+        })()}
       </div>
     </div>
   );
@@ -8129,6 +8161,9 @@ function AllInvoicesView({
   }, [initialMonth]);
 
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<
+    "date_desc" | "date_asc" | "client_asc" | "client_desc"
+  >("date_desc");
   const [selectedStayId, setSelectedStayId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [searchStay, setSearchStay] = useState("");
@@ -8211,17 +8246,32 @@ function AllInvoicesView({
   }, [invoices, hiddenEntries, currentYearStr, hiddenYear]);
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
-      const matchPeriod = matchesBillingPeriod(
-        inv.created_at,
-        periodType,
-        selectedYear,
-        selectedMonth,
-        selectedQuarter,
-      );
-      const matchStatus = filterStatus === "all" || inv.status === filterStatus;
-      return matchPeriod && matchStatus;
-    });
+    return invoices
+      .filter((inv) => {
+        const matchPeriod = matchesBillingPeriod(
+          inv.created_at,
+          periodType,
+          selectedYear,
+          selectedMonth,
+          selectedQuarter,
+        );
+        const matchStatus = filterStatus === "all" || inv.status === filterStatus;
+        return matchPeriod && matchStatus;
+      })
+      .sort((a, b) => {
+        if (sortBy === "client_asc" || sortBy === "client_desc") {
+          const nameCmp = (a.owner_name || "").localeCompare(
+            b.owner_name || "",
+            "fr",
+            { sensitivity: "base" },
+          );
+          if (nameCmp !== 0) return sortBy === "client_asc" ? nameCmp : -nameCmp;
+          return (b.created_at || "").localeCompare(a.created_at || "");
+        }
+        const dateCmp = (a.created_at || "").localeCompare(b.created_at || "");
+        if (dateCmp !== 0) return sortBy === "date_asc" ? dateCmp : -dateCmp;
+        return (a.invoice_number || "").localeCompare(b.invoice_number || "");
+      });
   }, [
     invoices,
     periodType,
@@ -8229,7 +8279,22 @@ function AllInvoicesView({
     selectedMonth,
     selectedQuarter,
     filterStatus,
+    sortBy,
   ]);
+
+  const paidFinalStayIds = useMemo(() => {
+    const set = new Set<string>();
+    invoices.forEach((inv) => {
+      if (
+        inv.stay_id &&
+        inv.type === "final" &&
+        (inv.status === "paid" || inv.status === "refunded")
+      ) {
+        set.add(String(inv.stay_id));
+      }
+    });
+    return set;
+  }, [invoices]);
 
   const totalCA = useMemo(() => {
     return filteredInvoices.reduce(
@@ -8868,15 +8933,57 @@ function AllInvoicesView({
               </option>
             ))}
           </select>
+
+          <select
+            aria-label="Trier les factures"
+            className="min-w-[180px] p-2 bg-white border border-[#E4DDD1] rounded-lg text-xs font-semibold text-stone-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/20 transition-all"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+          >
+            <option value="date_desc">Tri : Date (récentes d'abord)</option>
+            <option value="date_asc">Tri : Date (anciennes d'abord)</option>
+            <option value="client_asc">Tri : Client (A → Z)</option>
+            <option value="client_desc">Tri : Client (Z → A)</option>
+          </select>
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-[#EDE6DA]">
           <table className="w-full text-left border-collapse text-[13px]">
             <thead>
               <tr className="bg-[#F4F0E8] border-b border-[#E5DED2] text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
-                <th className="px-3.5 py-2.5">Date</th>
+                <th className="px-3.5 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSortBy((prev) =>
+                        prev === "date_desc" ? "date_asc" : "date_desc",
+                      )
+                    }
+                    className="inline-flex items-center gap-1 uppercase hover:text-stone-900 transition-colors cursor-pointer"
+                    title="Trier par date de facturation"
+                  >
+                    Date
+                    {sortBy === "date_desc" && <span className="text-emerald-700">↓</span>}
+                    {sortBy === "date_asc" && <span className="text-emerald-700">↑</span>}
+                  </button>
+                </th>
                 <th className="px-3.5 py-2.5">N° Facture</th>
-                <th className="px-3.5 py-2.5">Client / Animal</th>
+                <th className="px-3.5 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSortBy((prev) =>
+                        prev === "client_asc" ? "client_desc" : "client_asc",
+                      )
+                    }
+                    className="inline-flex items-center gap-1 uppercase hover:text-stone-900 transition-colors cursor-pointer"
+                    title="Trier par nom de client"
+                  >
+                    Client / Animal
+                    {sortBy === "client_asc" && <span className="text-emerald-700">↑</span>}
+                    {sortBy === "client_desc" && <span className="text-emerald-700">↓</span>}
+                  </button>
+                </th>
                 <th className="px-3.5 py-2.5">Statut / Paiement</th>
                 <th className="px-3.5 py-2.5">Montant</th>
                 <th className="px-3.5 py-2.5 text-right">Actions</th>
@@ -8950,11 +9057,34 @@ function AllInvoicesView({
                             Final (Acompte déduit)
                           </span>
                         )}
-                        {inv.type === "deposit" && (
-                          <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
-                            Acompte
-                          </span>
-                        )}
+                        {inv.type === "deposit" &&
+                          (() => {
+                            const isDepositPaid =
+                              inv.status === "paid" ||
+                              inv.status === "refunded";
+                            const isStaySettled = inv.stay_id
+                              ? paidFinalStayIds.has(String(inv.stay_id))
+                              : false;
+                            if (isDepositPaid && isStaySettled) {
+                              return (
+                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
+                                  Acompte (Soldé)
+                                </span>
+                              );
+                            }
+                            if (isDepositPaid) {
+                              return (
+                                <span className="text-[10px] font-semibold text-stone-600 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
+                                  Acompte (Réglé)
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded mt-0.5 w-fit">
+                                Acompte
+                              </span>
+                            );
+                          })()}
                       </div>
                     </td>
                     <td className="px-3.5 py-2.5 text-right">
